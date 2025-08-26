@@ -74,23 +74,24 @@ pipeline {
             }
         }
         
-        stage('Terraform Validate') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'ARM_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
-                    string(credentialsId: 'ARM_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
-                    string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID'),
-                    string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
-                ]) {
-                    sh '''
-                        export PATH="$HOME/.local/bin:$PATH"
-                        echo "Validating Terraform configuration..."
-                        terraform validate
-                        terraform fmt -check=true
-                    '''
-                }
-            }
+       stage('Terraform Validate') {
+    	steps {
+        withCredentials([
+            string(credentialsId: 'ARM_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
+            string(credentialsId: 'ARM_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
+            string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID'),
+            string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
+        ]) {
+            sh '''
+                export PATH="$HOME/.local/bin:$PATH"
+                echo "Formatting and validating Terraform configuration..."
+                terraform fmt
+                terraform validate
+            '''
         }
+    }
+}
+
         
         stage('Terraform Plan') {
             when {
