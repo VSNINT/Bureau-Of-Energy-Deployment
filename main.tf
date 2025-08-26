@@ -5,7 +5,7 @@ locals {
     CreatedDate = formatdate("YYYY-MM-DD", timestamp())
   })
 
-  vm_size        = "Standard_D2as_v5"
+  vm_size         = "Standard_D2as_v5"
   os_disk_size_gb = 128
 }
 
@@ -25,17 +25,17 @@ resource "azurerm_virtual_network" "main" {
 }
 
 resource "azurerm_subnet" "app" {
-  name                  = "${var.environment}-app-subnet"
-  resource_group_name   = azurerm_resource_group.main.name
-  virtual_network_name  = azurerm_virtual_network.main.name
-  address_prefixes      = [local.current_env.app_subnet]
+  name                 = "${var.environment}-app-subnet"
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = [local.current_env.app_subnet]
 }
 
 resource "azurerm_subnet" "db" {
-  name                  = "${var.environment}-db-subnet"
-  resource_group_name   = azurerm_resource_group.main.name
-  virtual_network_name  = azurerm_virtual_network.main.name
-  address_prefixes      = [local.current_env.db_subnet]
+  name                 = "${var.environment}-db-subnet"
+  resource_group_name  = azurerm_resource_group.main.name
+  virtual_network_name = azurerm_virtual_network.main.name
+  address_prefixes     = [local.current_env.db_subnet]
 }
 
 
@@ -136,7 +136,7 @@ resource "azurerm_subnet_network_security_group_association" "db" {
 }
 
 resource "azurerm_public_ip" "vm" {
-  for_each = local.current_env.vms
+  for_each            = local.current_env.vms
   name                = "${each.key}-pip"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
@@ -146,7 +146,7 @@ resource "azurerm_public_ip" "vm" {
 }
 
 resource "azurerm_network_interface" "vm" {
-  for_each = local.current_env.vms
+  for_each            = local.current_env.vms
   name                = "${each.key}-nic"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
@@ -162,7 +162,7 @@ resource "azurerm_network_interface" "vm" {
 
 # Important: This assumes "sql2022-windows2025" exists. If not, use "sql2022-windows2022".
 resource "azurerm_windows_virtual_machine" "vm" {
-  for_each            = local.current_env.vms
+  for_each = local.current_env.vms
 
   name                = each.key
   location            = azurerm_resource_group.main.location
@@ -192,8 +192,8 @@ resource "azurerm_windows_virtual_machine" "vm" {
     publisher = each.value.type == "database" ? "MicrosoftSQLServer" : "MicrosoftWindowsServer"
     offer     = each.value.type == "database" ? "sql2022-windows2025" : "WindowsServer"
     # If "sql2022-windows2025" not available, fallback to "sql2022-windows2022"
-    sku       = each.value.type == "database" ? "Standard" : "2025-datacenter"
-    version   = "latest"
+    sku     = each.value.type == "database" ? "Standard" : "2025-datacenter"
+    version = "latest"
   }
 }
 

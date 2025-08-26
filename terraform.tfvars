@@ -1,6 +1,6 @@
 # Environment Configuration
-environment = "production"
-location = "centralindia"
+environment    = "production"
+location       = "centralindia"
 admin_username = "azureadmin"
 
 # Resource Tags
