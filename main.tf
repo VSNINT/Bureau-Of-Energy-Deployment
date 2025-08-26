@@ -188,13 +188,13 @@ resource "azurerm_windows_virtual_machine" "vm" {
   }
 
   # Differentiate image for DB VMs (SQL) vs. others
-  source_image_reference {
-    publisher = each.value.type == "database" ? "MicrosoftSQLServer" : "MicrosoftWindowsServer"
-    offer     = each.value.type == "database" ? "sql2022-windows2025" : "WindowsServer"
-    # If "sql2022-windows2025" not available, fallback to "sql2022-windows2022"
-    sku     = each.value.type == "database" ? "Standard" : "2025-datacenter"
-    version = "latest"
-  }
+source_image_reference {
+  publisher = each.value.type == "database" ? "MicrosoftSQLServer" : "MicrosoftWindowsServer"
+  offer     = each.value.type == "database" ? "sql2022-ws2022" : "WindowsServer"
+  sku       = each.value.type == "database" ? "standard-gen2" : "2022-datacenter"
+  version   = "latest"
+}
+
 }
 
 resource "azurerm_mssql_virtual_machine" "db" {
