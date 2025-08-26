@@ -160,27 +160,32 @@ pipeline {
         }
         
         stage('Terraform Destroy') {
-            when {
-                expression { params.ACTION == 'destroy' }
-            }
-            steps {
-                script {
-                    input message: "Are you sure you want to destroy ${params.ENVIRONMENT} infrastructure?", ok: 'Destroy'
-                    withCredentials([
-                        string(credentialsId: 'ARM_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
-                        string(credentialsId: 'ARM_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
-                        string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID'),
-                        string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
-                    ]) {
-                        sh """
-                            export PATH="\$HOME/.local/bin:\$PATH"
-                            echo "Destroying Terraform infrastructure for ${params.ENVIRONMENT}..."
-                            terraform destroy -auto-approve -var="environment=${params.ENVIRONMENT}"
-                        """
-                    }
-                }
+    when {
+        expression { params.ACTION == 'destroy' }
+    }
+    steps {
+        script {
+            input message: "Are you sure you want to destroy ${params.ENVIRONMENT} infrastructure?", ok: 'Destroy'
+            withCredentials([
+                string(credentialsId: 'ARM_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
+                string(credentialsId: 'ARM_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
+                string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID'),
+                string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
+            ]) {
+                sh """
+                    export PATH="\$HOME/.local/bin:\$PATH"
+                    echo "Refreshing state to match Azure reality..."
+                    terraform apply -refresh-only -auto-approve -var="environment=${params.ENVIRONMENT}"
+                    echo "Current resources in state:"
+                    terraform state list
+                    echo "Destroying Terraform infrastructure for ${params.ENVIRONMENT}..."
+                    terraform destroy -auto-approve -var="environment=${params.ENVIRONMENT}"
+                """
             }
         }
+    }
+}
+
         
         stage('Output Results') {
             when {
