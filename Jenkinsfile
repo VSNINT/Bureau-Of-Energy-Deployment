@@ -22,6 +22,7 @@ pipeline {
     environment {
         TF_IN_AUTOMATION = 'true'
         TF_CLI_CONFIG_FILE = '.terraformrc'
+        PATH = "$PATH:$HOME/.local/bin"
     }
     
     stages {
@@ -36,15 +37,20 @@ pipeline {
         stage('Setup Terraform') {
             steps {
                 script {
-                    // Install Terraform if not available
                     sh '''
                         if ! command -v terraform &> /dev/null; then
                             echo "Installing Terraform..."
                             wget https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
                             unzip terraform_1.5.7_linux_amd64.zip
-                            sudo mv terraform /usr/local/bin/
+                            chmod +x terraform
+                            mkdir -p ~/.local/bin
+                            mv terraform ~/.local/bin/
                             rm terraform_1.5.7_linux_amd64.zip
+                            echo "Terraform installed successfully to ~/.local/bin/"
+                        else
+                            echo "Terraform is already installed"
                         fi
+                        export PATH="$HOME/.local/bin:$PATH"
                         terraform version
                     '''
                 }
@@ -60,6 +66,7 @@ pipeline {
                     string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
                 ]) {
                     sh '''
+                        export PATH="$HOME/.local/bin:$PATH"
                         echo "Initializing Terraform..."
                         terraform init -upgrade -input=false
                     '''
@@ -76,6 +83,7 @@ pipeline {
                     string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
                 ]) {
                     sh '''
+                        export PATH="$HOME/.local/bin:$PATH"
                         echo "Validating Terraform configuration..."
                         terraform validate
                         terraform fmt -check=true
@@ -100,6 +108,7 @@ pipeline {
                 ]) {
                     script {
                         sh """
+                            export PATH="\$HOME/.local/bin:\$PATH"
                             echo "Planning Terraform deployment for ${params.ENVIRONMENT}..."
                             terraform plan -var="environment=${params.ENVIRONMENT}" -out=tfplan-${params.ENVIRONMENT}
                         """
@@ -117,7 +126,7 @@ pipeline {
             }
             steps {
                 script {
-                    if (params.AUTO_APPROVE || env.BRANCH_NAME == 'main') {
+                    if (params.AUTO_APPROVE) {
                         withCredentials([
                             string(credentialsId: 'ARM_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
                             string(credentialsId: 'ARM_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
@@ -125,6 +134,7 @@ pipeline {
                             string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
                         ]) {
                             sh """
+                                export PATH="\$HOME/.local/bin:\$PATH"
                                 echo "Applying Terraform configuration for ${params.ENVIRONMENT}..."
                                 terraform apply -auto-approve -var="environment=${params.ENVIRONMENT}"
                             """
@@ -138,6 +148,7 @@ pipeline {
                             string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
                         ]) {
                             sh """
+                                export PATH="\$HOME/.local/bin:\$PATH"
                                 echo "Applying Terraform configuration for ${params.ENVIRONMENT}..."
                                 terraform apply -auto-approve -var="environment=${params.ENVIRONMENT}"
                             """
@@ -161,6 +172,7 @@ pipeline {
                         string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
                     ]) {
                         sh """
+                            export PATH="\$HOME/.local/bin:\$PATH"
                             echo "Destroying Terraform infrastructure for ${params.ENVIRONMENT}..."
                             terraform destroy -auto-approve -var="environment=${params.ENVIRONMENT}"
                         """
@@ -181,6 +193,7 @@ pipeline {
                     string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
                 ]) {
                     sh '''
+                        export PATH="$HOME/.local/bin:$PATH"
                         echo "=== Terraform Outputs ==="
                         terraform output
                         echo "=== Infrastructure Summary ==="
