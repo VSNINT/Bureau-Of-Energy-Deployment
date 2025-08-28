@@ -1,4 +1,4 @@
-# main.tf - Complete rewrite with all fixes
+# main.tf - Corrected version without invalid arguments
 
 # Data source for client configuration
 data "azurerm_client_config" "current" {}
@@ -196,9 +196,6 @@ resource "azurerm_windows_virtual_machine" "vm" {
   admin_password      = random_password.vm_password.result
   license_type        = "Windows_Server"
   
-  # Disable password authentication for better security in production
-  disable_password_authentication = false
-  
   tags = merge(local.common_tags, {
     Role    = each.value.type
     License = "AHUB-Enabled"
@@ -223,7 +220,9 @@ resource "azurerm_windows_virtual_machine" "vm" {
   }
 
   # Add boot diagnostics for troubleshooting
-  boot_diagnostics {}
+  boot_diagnostics {
+    storage_account_uri = null  # Use managed storage for boot diagnostics
+  }
 }
 
 # SQL Virtual Machine Configuration (for database VMs only)
