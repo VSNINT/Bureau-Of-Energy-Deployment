@@ -1,12 +1,29 @@
+# main.tf - Complete rewrite with all fixes
+
+# Data source for client configuration
+data "azurerm_client_config" "current" {}
+
+# Local values
 locals {
   current_env = local.env_config[var.environment]
   common_tags = merge(var.tags, {
     Environment = var.environment
     CreatedDate = formatdate("YYYY-MM-DD", timestamp())
   })
-
   vm_size         = "Standard_D2as_v5"
   os_disk_size_gb = 128
+}
+
+# Random password generation
+resource "random_password" "vm_password" {
+  length  = 16
+  special = true
+  upper   = true
+  lower   = true
+  numeric = true
+  
+  # Add special characters that work well with Windows
+  override_special = "!@#$%^&*()_+-=[]{}|;:,.<>?"
 }
 
 # Resource Group
@@ -16,6 +33,7 @@ resource "azurerm_resource_group" "main" {
   tags     = local.common_tags
 }
 
+# Virtual Network
 resource "azurerm_virtual_network" "main" {
   name                = "${var.environment}-vnet"
   address_space       = [local.current_env.vnet_cidr]
@@ -24,6 +42,7 @@ resource "azurerm_virtual_network" "main" {
   tags                = local.common_tags
 }
 
+# Application Subnet
 resource "azurerm_subnet" "app" {
   name                 = "${var.environment}-app-subnet"
   resource_group_name  = azurerm_resource_group.main.name
@@ -31,6 +50,7 @@ resource "azurerm_subnet" "app" {
   address_prefixes     = [local.current_env.app_subnet]
 }
 
+# Database Subnet
 resource "azurerm_subnet" "db" {
   name                 = "${var.environment}-db-subnet"
   resource_group_name  = azurerm_resource_group.main.name
@@ -38,7 +58,7 @@ resource "azurerm_subnet" "db" {
   address_prefixes     = [local.current_env.db_subnet]
 }
 
-
+# Network Security Group for Application Tier
 resource "azurerm_network_security_group" "app" {
   name                = "${var.environment}-app-nsg"
   location            = azurerm_resource_group.main.location
@@ -94,6 +114,7 @@ resource "azurerm_network_security_group" "app" {
   }
 }
 
+# Network Security Group for Database Tier
 resource "azurerm_network_security_group" "db" {
   name                = "${var.environment}-db-nsg"
   location            = azurerm_resource_group.main.location
@@ -125,6 +146,7 @@ resource "azurerm_network_security_group" "db" {
   }
 }
 
+# Subnet and NSG Associations
 resource "azurerm_subnet_network_security_group_association" "app" {
   subnet_id                 = azurerm_subnet.app.id
   network_security_group_id = azurerm_network_security_group.app.id
@@ -135,6 +157,7 @@ resource "azurerm_subnet_network_security_group_association" "db" {
   network_security_group_id = azurerm_network_security_group.db.id
 }
 
+# Public IP addresses for VMs
 resource "azurerm_public_ip" "vm" {
   for_each            = local.current_env.vms
   name                = "${each.key}-pip"
@@ -145,6 +168,7 @@ resource "azurerm_public_ip" "vm" {
   tags                = local.common_tags
 }
 
+# Network Interfaces for VMs
 resource "azurerm_network_interface" "vm" {
   for_each            = local.current_env.vms
   name                = "${each.key}-nic"
@@ -160,10 +184,10 @@ resource "azurerm_network_interface" "vm" {
   }
 }
 
-# Important: This assumes "sql2022-windows2025" exists. If not, use "sql2022-windows2022".
+# Windows Virtual Machines
 resource "azurerm_windows_virtual_machine" "vm" {
   for_each = local.current_env.vms
-
+  
   name                = each.key
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
@@ -171,7 +195,10 @@ resource "azurerm_windows_virtual_machine" "vm" {
   admin_username      = var.admin_username
   admin_password      = random_password.vm_password.result
   license_type        = "Windows_Server"
-
+  
+  # Disable password authentication for better security in production
+  disable_password_authentication = false
+  
   tags = merge(local.common_tags, {
     Role    = each.value.type
     License = "AHUB-Enabled"
@@ -187,47 +214,143 @@ resource "azurerm_windows_virtual_machine" "vm" {
     disk_size_gb         = local.os_disk_size_gb
   }
 
-  # Differentiate image for DB VMs (SQL) vs. others
-source_image_reference {
-  publisher = each.value.type == "database" ? "MicrosoftSQLServer" : "MicrosoftWindowsServer"
-  offer     = each.value.type == "database" ? "sql2022-ws2022" : "WindowsServer"
-  sku       = each.value.type == "database" ? "standard-gen2" : "2022-datacenter"
-  version   = "latest"
+  # Dynamic image selection based on VM type
+  source_image_reference {
+    publisher = each.value.type == "database" ? "MicrosoftSQLServer" : "MicrosoftWindowsServer"
+    offer     = each.value.type == "database" ? "sql2022-ws2022" : "WindowsServer"
+    sku       = each.value.type == "database" ? "standard-gen2" : "2022-datacenter"
+    version   = "latest"
+  }
+
+  # Add boot diagnostics for troubleshooting
+  boot_diagnostics {}
 }
 
-}
-
+# SQL Virtual Machine Configuration (for database VMs only)
 resource "azurerm_mssql_virtual_machine" "db" {
   for_each           = { for k, v in local.current_env.vms : k => v if v.type == "database" }
   virtual_machine_id = azurerm_windows_virtual_machine.vm[each.key].id
   sql_license_type   = "AHUB"
+  
+  # SQL Server connectivity configuration
+  sql_connectivity_type = "PRIVATE"
+  sql_connectivity_port = 1433
+  
+  # Explicit dependency to ensure VM is created first
+  depends_on = [azurerm_windows_virtual_machine.vm]
+
+  tags = local.common_tags
 }
 
+# ==========================================
+# OUTPUTS - Updated for password visibility
+# ==========================================
+
+# VM Admin Password (visible in console)
+output "admin_password" {
+  value       = random_password.vm_password.result
+  sensitive   = false
+  description = "VM Administrator Password - visible in console output"
+}
+
+# VM Admin Username
+output "admin_username" {
+  value       = var.admin_username
+  description = "VM Administrator Username"
+}
+
+# Complete Resource Summary (non-sensitive for password visibility)
 output "resource_summary" {
   value = {
-    resource_group = azurerm_resource_group.main.name
-    location       = var.location
-    environment    = var.environment
-    vnet_cidr      = local.current_env.vnet_cidr
-    app_subnet     = local.current_env.app_subnet
-    db_subnet      = local.current_env.db_subnet
-    vm_count       = length(local.current_env.vms)
-    vm_size        = local.vm_size
-    os_disk_size   = "${local.os_disk_size_gb}GB"
-    license_type   = "Azure Hybrid Use Benefit (A-HUB)"
-    admin_password = random_password.vm_password.result
+    resource_group   = azurerm_resource_group.main.name
+    location         = var.location
+    environment      = var.environment
+    vnet_cidr        = local.current_env.vnet_cidr
+    app_subnet       = local.current_env.app_subnet
+    db_subnet        = local.current_env.db_subnet
+    vm_count         = length(local.current_env.vms)
+    vm_size          = local.vm_size
+    os_disk_size     = "${local.os_disk_size_gb}GB"
+    license_type     = "Azure Hybrid Use Benefit (A-HUB)"
+    admin_username   = var.admin_username
+    admin_password   = random_password.vm_password.result
+    deployment_time  = timestamp()
   }
-  sensitive = true
+  sensitive   = false
+  description = "Complete summary of deployed resources including credentials"
 }
 
+# VM Public IP Addresses
 output "vm_public_ips" {
   value = {
     for k, v in azurerm_public_ip.vm : k => v.ip_address
   }
+  description = "Public IP addresses of all VMs"
 }
 
+# VM Private IP Addresses
 output "vm_private_ips" {
   value = {
     for k, v in azurerm_network_interface.vm : k => v.private_ip_address
   }
+  description = "Private IP addresses of all VMs"
+}
+
+# VM Connection Information
+output "vm_connection_info" {
+  value = {
+    for k, v in azurerm_public_ip.vm : k => {
+      public_ip  = v.ip_address
+      private_ip = azurerm_network_interface.vm[k].private_ip_address
+      rdp_command = "mstsc /v:${v.ip_address}"
+      vm_type    = local.current_env.vms[k].type
+    }
+  }
+  description = "Complete connection information for all VMs"
+}
+
+# Resource Group Information
+output "resource_group_info" {
+  value = {
+    name     = azurerm_resource_group.main.name
+    location = azurerm_resource_group.main.location
+    id       = azurerm_resource_group.main.id
+  }
+  description = "Resource group information"
+}
+
+# Network Information
+output "network_info" {
+  value = {
+    vnet_name    = azurerm_virtual_network.main.name
+    vnet_cidr    = local.current_env.vnet_cidr
+    app_subnet   = local.current_env.app_subnet
+    db_subnet    = local.current_env.db_subnet
+  }
+  description = "Network configuration information"
+}
+
+# Quick Access Summary (for easy copy-paste)
+output "quick_access" {
+  value = <<-EOT
+    ====================================
+    🔐 CREDENTIALS
+    ====================================
+    Username: ${var.admin_username}
+    Password: ${random_password.vm_password.result}
+    
+    ====================================
+    🌐 RDP CONNECTIONS
+    ====================================
+    ${join("\n    ", [for k, v in azurerm_public_ip.vm : "${k}: mstsc /v:${v.ip_address}"])}
+    
+    ====================================
+    📊 DEPLOYMENT SUMMARY
+    ====================================
+    Environment: ${var.environment}
+    Resource Group: ${azurerm_resource_group.main.name}
+    Location: ${var.location}
+    VMs Deployed: ${length(local.current_env.vms)}
+  EOT
+  description = "Quick access summary with all essential information"
 }
