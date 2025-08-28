@@ -1,4 +1,4 @@
-# main.tf - Corrected version without invalid arguments
+# main.tf - Complete file with corrected sensitive outputs
 
 # Data source for client configuration
 data "azurerm_client_config" "current" {}
@@ -242,23 +242,23 @@ resource "azurerm_mssql_virtual_machine" "db" {
 }
 
 # ==========================================
-# OUTPUTS - Updated for password visibility
+# OUTPUTS - Corrected with proper sensitivity
 # ==========================================
 
-# VM Admin Password (visible in console)
+# VM Admin Password (marked as sensitive - use terraform output -raw admin_password to view)
 output "admin_password" {
   value       = random_password.vm_password.result
-  sensitive   = false
-  description = "VM Administrator Password - visible in console output"
+  sensitive   = true
+  description = "VM Administrator Password - use 'terraform output -raw admin_password' to view"
 }
 
-# VM Admin Username
+# VM Admin Username (non-sensitive)
 output "admin_username" {
   value       = var.admin_username
   description = "VM Administrator Username"
 }
 
-# Complete Resource Summary (non-sensitive for password visibility)
+# Complete Resource Summary (marked as sensitive due to password)
 output "resource_summary" {
   value = {
     resource_group   = azurerm_resource_group.main.name
@@ -275,11 +275,11 @@ output "resource_summary" {
     admin_password   = random_password.vm_password.result
     deployment_time  = timestamp()
   }
-  sensitive   = false
+  sensitive   = true
   description = "Complete summary of deployed resources including credentials"
 }
 
-# VM Public IP Addresses
+# VM Public IP Addresses (non-sensitive)
 output "vm_public_ips" {
   value = {
     for k, v in azurerm_public_ip.vm : k => v.ip_address
@@ -287,7 +287,7 @@ output "vm_public_ips" {
   description = "Public IP addresses of all VMs"
 }
 
-# VM Private IP Addresses
+# VM Private IP Addresses (non-sensitive)
 output "vm_private_ips" {
   value = {
     for k, v in azurerm_network_interface.vm : k => v.private_ip_address
@@ -295,7 +295,7 @@ output "vm_private_ips" {
   description = "Private IP addresses of all VMs"
 }
 
-# VM Connection Information
+# VM Connection Information (non-sensitive)
 output "vm_connection_info" {
   value = {
     for k, v in azurerm_public_ip.vm : k => {
@@ -308,7 +308,7 @@ output "vm_connection_info" {
   description = "Complete connection information for all VMs"
 }
 
-# Resource Group Information
+# Resource Group Information (non-sensitive)
 output "resource_group_info" {
   value = {
     name     = azurerm_resource_group.main.name
@@ -318,7 +318,7 @@ output "resource_group_info" {
   description = "Resource group information"
 }
 
-# Network Information
+# Network Information (non-sensitive)
 output "network_info" {
   value = {
     vnet_name    = azurerm_virtual_network.main.name
@@ -329,7 +329,7 @@ output "network_info" {
   description = "Network configuration information"
 }
 
-# Quick Access Summary (for easy copy-paste)
+# Quick Access Summary (marked as sensitive due to password)
 output "quick_access" {
   value = <<-EOT
     ====================================
@@ -351,5 +351,6 @@ output "quick_access" {
     Location: ${var.location}
     VMs Deployed: ${length(local.current_env.vms)}
   EOT
+  sensitive   = true
   description = "Quick access summary with all essential information"
 }
