@@ -14,7 +14,7 @@ locals {
   
   # VM sizes based on environment and type
   vm_sizes = {
-    production = {
+    prod = {
       application = "Standard_D16as_v5"  # 16 vCPUs, 64GB RAM
       database    = "Standard_E16as_v5"  # 16 vCPUs, 128GB RAM (Memory Optimized)
     }
@@ -216,6 +216,7 @@ resource "azurerm_windows_virtual_machine" "vm" {
   for_each = local.current_env.vms
   
   name                = "star-surya-${each.key}-vm"
+  computer_name       = "ss-${each.key}-vm"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   size                = local.vm_sizes[var.environment][each.value.type]
@@ -428,4 +429,3 @@ output "quick_access" {
   sensitive   = true
   description = "Quick access summary with all essential information including disk details"
 }
-
