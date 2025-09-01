@@ -1,4 +1,4 @@
 # Environment Configuration
-environment    = "production"
+environment    = "prod"
 location       = "centralindia"
 admin_username = "azureadmin"

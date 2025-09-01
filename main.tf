@@ -10,11 +10,13 @@ locals {
     Environment = var.environment
     CreatedDate = formatdate("YYYY-MM-DD", timestamp())
     Project     = "star-surya"
+    "Created on" = "1 sep 2025"
+    "Created by" = "Deepak"
   })
   
-  # VM sizes based on environment and type
+  # VM sizes based on environment and type - UPDATED to use "prod" instead of "production"
   vm_sizes = {
-    production = {
+    prod = {
       application = "Standard_D16as_v5"  # 16 vCPUs, 64GB RAM
       database    = "Standard_E16as_v5"  # 16 vCPUs, 128GB RAM (Memory Optimized)
     }
