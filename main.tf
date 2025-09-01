@@ -255,13 +255,12 @@ resource "azurerm_windows_virtual_machine" "vm" {
     # REMOVED: Trusted Launch security settings
     # security_encryption_type = "DiskWithVMGuestState"
   }
-
-  # Standard image selection (NOT Gen2) - works with Standard security type
+  #source Image Reference
   source_image_reference {
-    publisher = each.value.type == "database" ? "MicrosoftSQLServer" : "MicrosoftWindowsServer"
-    offer     = each.value.type == "database" ? "sql2022-ws2022" : "WindowsServer"
-    sku       = each.value.type == "database" ? "standard" : "2022-datacenter"  # Standard SKUs (NOT Gen2)
-    version   = "latest"
+  publisher = each.value.type == "database" ? "MicrosoftSQLServer" : "MicrosoftWindowsServer"
+  offer     = each.value.type == "database" ? "sql2022-ws2022" : "WindowsServer"
+  sku       = each.value.type == "database" ? "standard-gen2" : "2022-datacenter"  # Keep as "standard-gen2"
+  version   = "latest"
   }
 
   # Boot diagnostics for troubleshooting
