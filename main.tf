@@ -14,7 +14,7 @@ locals {
   
   # VM sizes based on environment and type
   vm_sizes = {
-    prod = {
+    production = {
       application = "Standard_D16as_v5"  # 16 vCPUs, 64GB RAM
       database    = "Standard_E16as_v5"  # 16 vCPUs, 128GB RAM (Memory Optimized)
     }
@@ -60,34 +60,34 @@ resource "azurerm_resource_group" "main" {
   tags     = local.common_tags
 }
 
-# Virtual Network per environment
+# Virtual Network per environment - using env_short_name
 resource "azurerm_virtual_network" "main" {
-  name                = "star-surya-${var.environment}-vnet"
+  name                = "star-surya-${local.env_short_name}-vnet"
   address_space       = [local.current_env.vnet_cidr]
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   tags                = local.common_tags
 }
 
-# Application Subnet
+# Application Subnet - using env_short_name
 resource "azurerm_subnet" "app" {
-  name                 = "star-surya-${var.environment}-app-subnet"
+  name                 = "star-surya-${local.env_short_name}-app-subnet"
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [local.current_env.app_subnet]
 }
 
-# Database Subnet
+# Database Subnet - using env_short_name
 resource "azurerm_subnet" "db" {
-  name                 = "star-surya-${var.environment}-db-subnet"
+  name                 = "star-surya-${local.env_short_name}-db-subnet"
   resource_group_name  = azurerm_resource_group.main.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [local.current_env.db_subnet]
 }
 
-# Network Security Group for Application Tier
+# Network Security Group for Application Tier - using env_short_name
 resource "azurerm_network_security_group" "app" {
-  name                = "star-surya-${var.environment}-app-nsg"
+  name                = "star-surya-${local.env_short_name}-app-nsg"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   tags                = local.common_tags
@@ -141,9 +141,9 @@ resource "azurerm_network_security_group" "app" {
   }
 }
 
-# Network Security Group for Database Tier
+# Network Security Group for Database Tier - using env_short_name
 resource "azurerm_network_security_group" "db" {
-  name                = "star-surya-${var.environment}-db-nsg"
+  name                = "star-surya-${local.env_short_name}-db-nsg"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
   tags                = local.common_tags

@@ -1,9 +1,9 @@
 variable "environment" {
-  description = "Environment name (prod, uat, dr)"
+  description = "Environment name (production, uat, dr)"
   type        = string
   validation {
-    condition     = contains(["prod", "uat", "dr"], var.environment)
-    error_message = "Environment must be prod, uat, or dr."
+    condition     = contains(["production", "uat", "dr"], var.environment)
+    error_message = "Environment must be production, uat, or dr."
   }
 }
 
@@ -31,8 +31,11 @@ variable "tags" {
 }
 
 locals {
+  # Map "production" to "prod" for resource naming
+  env_short_name = var.environment == "production" ? "prod" : var.environment
+  
   env_config = {
-    prod = {
+    production = {
       vnet_cidr  = "10.0.0.0/16"
       app_subnet = "10.0.1.0/24"
       db_subnet  = "10.0.2.0/24"
