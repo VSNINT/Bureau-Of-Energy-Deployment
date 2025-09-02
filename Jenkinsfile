@@ -79,7 +79,7 @@ pipeline {
                         ])
                         echo "✅ Previous state files restored"
                     } catch (Exception e) {
-                        echo "ℹ️ No previous state files found (this is normal for first run)"
+                        echo "ℹ️ No previous state files found (normal for first deployment)"
                     }
                 }
             }
@@ -102,13 +102,25 @@ pipeline {
                         # Select workspace or create if it doesn't exist
                         terraform workspace select ${ENVIRONMENT} || terraform workspace new ${ENVIRONMENT}
                         
-                        # Show current workspace
                         CURRENT_WORKSPACE=$(terraform workspace show)
                         echo "✅ Current workspace: $CURRENT_WORKSPACE"
                         
-                        # List all workspaces
+                        # Smart resource import for shared resources
+                        echo "🔄 Checking for existing shared resources..."
+                        
+                        # Import resource group if it doesn't exist in current workspace state
+                        if ! terraform state list | grep -q "azurerm_resource_group.main"; then
+                            echo "📥 Importing existing resource group into workspace: $CURRENT_WORKSPACE"
+                            terraform import azurerm_resource_group.main "/subscriptions/${ARM_SUBSCRIPTION_ID}/resourceGroups/star-surya-rg" || echo "ℹ️ Resource group will be created if it doesn't exist"
+                        else
+                            echo "✅ Resource group already exists in workspace state"
+                        fi
+                        
                         echo "📋 Available workspaces:"
                         terraform workspace list
+                        
+                        echo "📊 Current workspace state summary:"
+                        terraform state list || echo "ℹ️ No resources in state yet"
                     '''
                 }
             }
@@ -136,17 +148,20 @@ pipeline {
                         echo ""
                         
                         echo "📋 Terraform state status for workspace $(terraform workspace show):"
-                        if [ -f "terraform.tfstate" ]; then
-                            echo "✅ State file exists"
-                            RESOURCE_COUNT=$(terraform state list 2>/dev/null | wc -l)
-                            echo "📊 Resources in state: $RESOURCE_COUNT"
-                            if [ "$RESOURCE_COUNT" -gt 0 ]; then
-                                echo "🗂️ Resources:"
-                                terraform state list
-                            fi
+                        RESOURCE_COUNT=$(terraform state list 2>/dev/null | wc -l)
+                        echo "📊 Resources in workspace state: $RESOURCE_COUNT"
+                        
+                        if [ "$RESOURCE_COUNT" -gt 0 ]; then
+                            echo "🗂️ Resources in state:"
+                            terraform state list
                         else
-                            echo "ℹ️ No state file found (normal for first deployment in this workspace)"
+                            echo "ℹ️ No resources in state (normal for first deployment in this workspace)"
                         fi
+                        
+                        echo ""
+                        echo "🏗️ Workspace information:"
+                        echo "Current: $(terraform workspace show)"
+                        echo "Available: $(terraform workspace list)"
                     '''
                 }
             }
@@ -165,7 +180,7 @@ pipeline {
                         echo "✅ Formatting and validating Terraform configuration..."
                         terraform fmt
                         terraform validate
-                        echo "✅ Configuration is valid"
+                        echo "✅ Configuration is valid for workspace: $(terraform workspace show)"
                     '''
                 }
             }
@@ -188,13 +203,14 @@ pipeline {
                     script {
                         sh """
                             export PATH="\$HOME/.local/bin:\$PATH"
-                            echo "📋 Planning Terraform deployment for workspace: \$(terraform workspace show)..."
+                            echo "📋 Planning Terraform deployment..."
                             echo "🎯 Environment: ${params.ENVIRONMENT}"
+                            echo "🏗️ Workspace: \$(terraform workspace show)"
                             terraform plan -var="environment=${params.ENVIRONMENT}" -out=tfplan-${params.ENVIRONMENT}
                         """
                         
                         // Archive the plan file
-                        archiveArtifacts artifacts: "tfplan-${params.ENVIRONMENT}", fingerprint: true
+                        archiveArtifacts artifacts: "tfplan-${params.ENVIRONMENT}", fingerprint: true, allowEmptyArchive: true
                     }
                 }
             }
@@ -215,13 +231,14 @@ pipeline {
                         ]) {
                             sh """
                                 export PATH="\$HOME/.local/bin:\$PATH"
-                                echo "🚀 Applying Terraform configuration for workspace: \$(terraform workspace show)..."
+                                echo "🚀 Applying Terraform configuration..."
                                 echo "🎯 Environment: ${params.ENVIRONMENT}"
+                                echo "🏗️ Workspace: \$(terraform workspace show)"
                                 terraform apply -auto-approve -var="environment=${params.ENVIRONMENT}"
                             """
                         }
                     } else {
-                        input message: "🚀 Approve Terraform Apply for ${params.ENVIRONMENT} environment?", ok: 'Apply'
+                        input message: "🚀 Approve Terraform Apply for ${params.ENVIRONMENT} environment in workspace?", ok: 'Apply'
                         withCredentials([
                             string(credentialsId: 'ARM_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
                             string(credentialsId: 'ARM_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
@@ -230,8 +247,9 @@ pipeline {
                         ]) {
                             sh """
                                 export PATH="\$HOME/.local/bin:\$PATH"
-                                echo "🚀 Applying Terraform configuration for workspace: \$(terraform workspace show)..."
+                                echo "🚀 Applying Terraform configuration..."
                                 echo "🎯 Environment: ${params.ENVIRONMENT}"
+                                echo "🏗️ Workspace: \$(terraform workspace show)"
                                 terraform apply -auto-approve -var="environment=${params.ENVIRONMENT}"
                             """
                         }
@@ -246,7 +264,7 @@ pipeline {
             }
             steps {
                 script {
-                    input message: "⚠️ Are you sure you want to DESTROY ${params.ENVIRONMENT} environment? This cannot be undone!", ok: 'Destroy'
+                    input message: "⚠️ DANGER: Destroy ${params.ENVIRONMENT} environment? This cannot be undone!", ok: 'Destroy'
                     withCredentials([
                         string(credentialsId: 'ARM_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
                         string(credentialsId: 'ARM_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
@@ -260,15 +278,15 @@ pipeline {
                             echo "🎯 Environment: ${params.ENVIRONMENT}"
                             echo "🏗️ Workspace: \$(terraform workspace show)"
                             
-                            # Check current state
+                            # Check current workspace state
                             RESOURCE_COUNT=\$(terraform state list 2>/dev/null | wc -l)
                             echo "📊 Resources in workspace state: \$RESOURCE_COUNT"
                             
                             if [ "\$RESOURCE_COUNT" -eq 0 ]; then
-                                echo "⚠️ No resources in Terraform state for this workspace!"
+                                echo "⚠️ No resources in Terraform state for workspace: \$(terraform workspace show)"
                                 echo "✅ Nothing to destroy - workspace state is empty"
                             else
-                                echo "🗂️ Resources to be destroyed:"
+                                echo "🗂️ Resources to be destroyed in workspace \$(terraform workspace show):"
                                 terraform state list
                                 echo ""
                                 echo "🗑️ Destroying \$RESOURCE_COUNT resources for ${params.ENVIRONMENT} environment..."
@@ -340,6 +358,10 @@ pipeline {
                         echo "Database Server: mstsc /v:$DB_IP"
                         echo ""
                         echo "=========================================="
+                        echo "📊 WORKSPACE INFORMATION:"
+                        echo "Current: $(terraform workspace show)"
+                        echo "Resources: $(terraform state list 2>/dev/null | wc -l)"
+                        echo "=========================================="
                     '''
                 }
             }
@@ -350,18 +372,18 @@ pipeline {
         always {
             script {
                 echo "🗃️ Archiving state files for workspace: ${params.ENVIRONMENT}"
-                archiveArtifacts artifacts: 'terraform.tfstate*', fingerprint: true, allowEmptyArchive: true
-                archiveArtifacts artifacts: '.terraform.lock.hcl', fingerprint: true, allowEmptyArchive: true
                 
                 // Archive workspace-specific artifacts
+                archiveArtifacts artifacts: 'terraform.tfstate*', fingerprint: true, allowEmptyArchive: true
+                archiveArtifacts artifacts: '.terraform.lock.hcl', fingerprint: true, allowEmptyArchive: true
                 archiveArtifacts artifacts: "tfplan-${params.ENVIRONMENT}", fingerprint: true, allowEmptyArchive: true
                 
-                // Only clean workspace after successful destroy
+                // Clean workspace only after successful destroy
                 if (params.ACTION == 'destroy' && currentBuild.currentResult == 'SUCCESS') {
                     echo "🧹 Cleaning workspace after successful destroy of ${params.ENVIRONMENT}"
                     cleanWs()
                 } else {
-                    echo "📁 Preserving workspace to maintain state files for ${params.ENVIRONMENT}"
+                    echo "📁 Preserving workspace files for ${params.ENVIRONMENT} environment"
                 }
             }
         }
@@ -373,6 +395,7 @@ pipeline {
                     'destroy': '🗑️'
                 ]
                 echo "${actionEmoji[params.ACTION]} Terraform ${params.ACTION} completed successfully for ${params.ENVIRONMENT} environment!"
+                echo "🏗️ Workspace: ${params.ENVIRONMENT}"
                 
                 if (params.ACTION == 'apply') {
                     echo "🔐 VM credentials and connection details are displayed above"
@@ -387,9 +410,10 @@ pipeline {
                     'destroy': '💥'
                 ]
                 echo "${actionEmoji[params.ACTION]} Terraform ${params.ACTION} failed for ${params.ENVIRONMENT} environment!"
+                echo "🏗️ Workspace: ${params.ENVIRONMENT}"
                 echo "🔍 Check the logs above for error details"
                 
-                // Archive state even on failure to debug issues
+                // Archive state even on failure for debugging
                 archiveArtifacts artifacts: 'terraform.tfstate*', fingerprint: true, allowEmptyArchive: true
             }
         }
