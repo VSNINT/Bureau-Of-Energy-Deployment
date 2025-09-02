@@ -126,47 +126,6 @@ pipeline {
             }
         }
         
-        stage('State Diagnostics') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'ARM_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
-                    string(credentialsId: 'ARM_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
-                    string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID'),
-                    string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
-                ]) {
-                    sh '''
-                        export PATH="$HOME/.local/bin:$PATH"
-                        echo "🔍 === STATE DIAGNOSTICS ==="
-                        echo "Environment: ${ENVIRONMENT}"
-                        echo "Action: ${ACTION}"
-                        echo "Workspace: $(terraform workspace show)"
-                        echo "Working Directory: $(pwd)"
-                        echo ""
-                        
-                        echo "📁 Files in current directory:"
-                        ls -la
-                        echo ""
-                        
-                        echo "📋 Terraform state status for workspace $(terraform workspace show):"
-                        RESOURCE_COUNT=$(terraform state list 2>/dev/null | wc -l)
-                        echo "📊 Resources in workspace state: $RESOURCE_COUNT"
-                        
-                        if [ "$RESOURCE_COUNT" -gt 0 ]; then
-                            echo "🗂️ Resources in state:"
-                            terraform state list
-                        else
-                            echo "ℹ️ No resources in state (normal for first deployment in this workspace)"
-                        fi
-                        
-                        echo ""
-                        echo "🏗️ Workspace information:"
-                        echo "Current: $(terraform workspace show)"
-                        echo "Available: $(terraform workspace list)"
-                    '''
-                }
-            }
-        }
-        
         stage('Terraform Validate') {
             steps {
                 withCredentials([
@@ -238,7 +197,7 @@ pipeline {
                             """
                         }
                     } else {
-                        input message: "🚀 Approve Terraform Apply for ${params.ENVIRONMENT} environment in workspace?", ok: 'Apply'
+                        input message: "🚀 Approve Terraform Apply for ${params.ENVIRONMENT} environment?", ok: 'Apply'
                         withCredentials([
                             string(credentialsId: 'ARM_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
                             string(credentialsId: 'ARM_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),

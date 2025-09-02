@@ -1,4 +1,4 @@
-# main.tf - Updated with Standard security type and larger VM sizes
+# main.tf - Star Surya Multi-Environment Infrastructure with Terraform Workspaces
 
 # Data source for client configuration
 data "azurerm_client_config" "current" {}
@@ -14,14 +14,14 @@ locals {
     "Created by" = "Deepak"
   })
   
-  # VM sizes based on environment and type - Back to original larger sizes
+  # VM sizes based on environment and type - UPDATED to use "prod" instead of "production"
   vm_sizes = {
     prod = {
       application = "Standard_D16as_v5"  # 16 vCPUs, 64GB RAM
       database    = "Standard_E16as_v5"  # 16 vCPUs, 128GB RAM (Memory Optimized)
     }
     uat = {
-      application = "Standard_D8as_v5"   # 8 vCPUs, 32GB RAM  
+      application = "Standard_D8as_v5"   # 8 vCPUs, 32GB RAM
       database    = "Standard_E8as_v5"   # 8 vCPUs, 64GB RAM (Memory Optimized)
     }
     dr = {
@@ -55,11 +55,19 @@ resource "random_password" "vm_password" {
   override_special = "!@#$%^&*()_+-=[]{}|;:,.<>?"
 }
 
-# Single Resource Group for all environments
+# Single Resource Group for all environments - PROTECTED FROM DELETION
 resource "azurerm_resource_group" "main" {
   name     = "star-surya-rg"
   location = var.location
   tags     = local.common_tags
+  
+  # CRITICAL: Protect shared resource group from accidental deletion
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes = [
+      tags["CreatedDate"]  # Ignore date changes between deployments
+    ]
+  }
 }
 
 # Virtual Network per environment - using env_short_name
@@ -226,17 +234,10 @@ resource "azurerm_windows_virtual_machine" "vm" {
   admin_password      = random_password.vm_password.result
   license_type        = "Windows_Server"
   
-  # REMOVED: Trusted Launch Configuration (using Standard security type)
-  # secure_boot_enabled = true
-  # vtpm_enabled        = true
-  
-  # No availability options (no infrastructure redundancy required)
-  # availability_set_id is not specified (default: no infrastructure redundancy)
-  
   tags = merge(local.common_tags, {
     Role         = each.value.type
     License      = "AHUB-Enabled"
-    SecurityType = "Standard"  # Changed from "TrustedLaunch" to "Standard"
+    SecurityType = "Standard"
     VMSize       = local.vm_sizes[var.environment][each.value.type]
     DiskType     = each.key == "prod-db" ? "StandardSSD_LRS" : "Standard_LRS"
   })
@@ -251,16 +252,14 @@ resource "azurerm_windows_virtual_machine" "vm" {
     
     # Dynamic storage type: Standard SSD for prod-db, Standard HDD for all others
     storage_account_type = each.key == "prod-db" ? "StandardSSD_LRS" : "Standard_LRS"
-    
-    # REMOVED: Trusted Launch security settings
-    # security_encryption_type = "DiskWithVMGuestState"
   }
-  #source Image Reference
+
+  # Standard image selection (works with Standard security type)
   source_image_reference {
-  publisher = each.value.type == "database" ? "MicrosoftSQLServer" : "MicrosoftWindowsServer"
-  offer     = each.value.type == "database" ? "sql2022-ws2022" : "WindowsServer"
-  sku       = each.value.type == "database" ? "standard-gen2" : "2022-datacenter"  # Keep as "standard-gen2"
-  version   = "latest"
+    publisher = each.value.type == "database" ? "MicrosoftSQLServer" : "MicrosoftWindowsServer"
+    offer     = each.value.type == "database" ? "sql2022-ws2022" : "WindowsServer"
+    sku       = each.value.type == "database" ? "standard-gen2" : "2022-datacenter"
+    version   = "latest"
   }
 
   # Boot diagnostics for troubleshooting
@@ -311,35 +310,11 @@ output "vm_configuration_info" {
       vm_size       = local.vm_sizes[var.environment][v.type]
       disk_size_gb  = 256
       disk_type     = k == "prod-db" ? "StandardSSD_LRS" : "Standard_LRS"
-      security_type = "Standard"  # Changed from "Trusted Launch"
+      security_type = "Standard"
       availability  = "No infrastructure redundancy"
     }
   }
   description = "VM configuration and disk information"
-}
-
-# Complete Resource Summary (marked as sensitive due to password)
-output "resource_summary" {
-  value = {
-    resource_group   = azurerm_resource_group.main.name
-    location         = var.location
-    environment      = var.environment
-    vnet_name        = azurerm_virtual_network.main.name
-    vnet_cidr        = local.current_env.vnet_cidr
-    app_subnet       = local.current_env.app_subnet
-    db_subnet        = local.current_env.db_subnet
-    vm_count         = length(local.current_env.vms)
-    vm_sizes         = { for k, v in local.current_env.vms : k => local.vm_sizes[var.environment][v.type] }
-    disk_sizes       = { for k, v in local.current_env.vms : k => "256GB" }
-    disk_types       = { for k, v in local.current_env.vms : k => (k == "prod-db" ? "Standard SSD" : "Standard HDD") }
-    security_type    = "Standard"  # Changed from "Trusted Launch"
-    license_type     = "Azure Hybrid Use Benefit (A-HUB)"
-    admin_username   = var.admin_username
-    admin_password   = random_password.vm_password.result
-    deployment_time  = timestamp()
-  }
-  sensitive   = true
-  description = "Complete summary of deployed resources including credentials"
 }
 
 # VM Public IP Addresses (non-sensitive)
@@ -370,7 +345,7 @@ output "vm_connection_info" {
       vm_size       = local.vm_sizes[var.environment][local.current_env.vms[k].type]
       disk_size     = "256GB"
       disk_type     = k == "prod-db" ? "Standard SSD LRS" : "Standard HDD LRS"
-      security_type = "Standard"  # Changed from "Trusted Launch"
+      security_type = "Standard"
     }
   }
   description = "Complete connection information for all VMs"
