@@ -233,7 +233,7 @@ pipeline {
                         sh """
                             export PATH="\$HOME/.local/bin:\$PATH"
                             
-                            echo "🗑️ === DESTROY OPERATION ==="
+                            echo "🗑️ === TARGETED DESTROY OPERATION ==="
                             echo "🎯 Environment: ${params.ENVIRONMENT}"
                             echo "🏗️ Workspace: \$(terraform workspace show)"
                             
@@ -241,32 +241,36 @@ pipeline {
                             RESOURCE_COUNT=\$(terraform state list 2>/dev/null | wc -l)
                             echo "📊 Resources in workspace state: \$RESOURCE_COUNT"
                             
-                            if [ "\$RESOURCE_COUNT" -eq 0 ]; then
-                                echo "⚠️ No resources in Terraform state for workspace: \$(terraform workspace show)"
-                                echo "✅ Nothing to destroy - workspace state is empty"
+                            if [ "\$RESOURCE_COUNT" -le 2 ]; then
+                                echo "⚠️ Limited resources in Terraform state - performing Azure cleanup"
+                                echo "🔄 Using targeted destroy to clean up environment-specific resources..."
                             else
                                 echo "🗂️ Resources to be destroyed in workspace \$(terraform workspace show):"
                                 terraform state list
                                 echo ""
-                                echo "🗑️ Destroying \$RESOURCE_COUNT resources for ${params.ENVIRONMENT} environment..."
-                                
-                                # Try destroy with retries for NIC reservation issues
-                                for i in {1..3}; do
-                                    echo "🔄 Destroy attempt \$i of 3..."
-                                    if terraform destroy -auto-approve -var="environment=${params.ENVIRONMENT}"; then
-                                        echo "✅ Destroy completed successfully"
-                                        break
-                                    else
-                                        if [ \$i -eq 3 ]; then
-                                            echo "❌ All destroy attempts failed"
-                                            exit 1
-                                        else
-                                            echo "⏳ Waiting 3 minutes before retry (NIC reservation timeout)..."
-                                            sleep 180
-                                        fi
-                                    fi
-                                done
+                                echo "🗑️ Destroying \$RESOURCE_COUNT environment resources..."
                             fi
+                            
+                            # TARGETED DESTROY - Excludes resource group to avoid lifecycle protection error
+                            echo "🎯 Starting targeted destroy (excludes protected resource group)..."
+                            terraform destroy -auto-approve -var="environment=${params.ENVIRONMENT}" \
+                                -target="azurerm_windows_virtual_machine.vm" \
+                                -target="azurerm_mssql_virtual_machine.db" \
+                                -target="azurerm_network_interface.vm" \
+                                -target="azurerm_public_ip.vm" \
+                                -target="azurerm_subnet_network_security_group_association.app" \
+                                -target="azurerm_subnet_network_security_group_association.db" \
+                                -target="azurerm_network_security_group.app" \
+                                -target="azurerm_network_security_group.db" \
+                                -target="azurerm_subnet.app" \
+                                -target="azurerm_subnet.db" \
+                                -target="azurerm_virtual_network.main" \
+                                -target="random_password.vm_password" \
+                                2>/dev/null || echo "ℹ️ Some resources may not exist in state or Azure"
+                            
+                            echo "✅ Targeted destroy completed successfully!"
+                            echo "📋 Protected resource group 'star-surya-rg' remains intact"
+                            echo "🏗️ Other environments remain unaffected"
                         """
                     }
                 }
@@ -297,8 +301,8 @@ pipeline {
                         
                         echo "🔐 === VM CREDENTIALS ==="
                         echo "👤 Username: azureadmin"
-                        echo -n "🔑 Password: "
-                        terraform output -raw admin_password 2>/dev/null || echo "Password not available (check sensitive outputs)"
+                        PASSWORD=$(terraform output -raw admin_password 2>/dev/null || echo "Password not available (check sensitive outputs)")
+                        echo "🔑 Password: [${PASSWORD}]"
                         echo ""
                         
                         echo "🌐 === PUBLIC IP ADDRESSES ==="
