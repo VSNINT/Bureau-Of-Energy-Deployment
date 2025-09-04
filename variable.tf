@@ -30,6 +30,16 @@ variable "tags" {
   }
 }
 
+variable "tenant_id" {
+  description = "Azure Active Directory Tenant ID"
+  type        = string
+}
+
+variable "subscription_id" {
+  description = "Azure Subscription ID"
+  type        = string
+}
+
 locals {
   # Environment-specific configuration
   env_config = {
@@ -60,15 +70,15 @@ locals {
       }
     }
   }
-  
+
   # Select current environment configuration
   current_env = local.env_config[var.environment]
-  
+
   # Common tags with environment
   common_tags = merge(var.tags, {
     Environment = var.environment
     CreatedDate = formatdate("YYYY-MM-DD", timestamp())
     "Created by" = "Deepak"
-    "Created on" = "1 sep 2025"
+    "Created on" = "4 Sep 2025"
   })
 }
