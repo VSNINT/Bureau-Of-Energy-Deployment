@@ -74,16 +74,21 @@ pipeline {
                     echo "🧹 Cleaning old state files for subscription change..."
                     echo "⚠️  Removing state files that point to old subscription/tenant"
                     
-                    # Remove local state files
-                    rm -f terraform.tfstate*
+                    # Remove state files
+                    rm -f terraform.tfstate
+                    rm -f terraform.tfstate.backup
                     rm -f .terraform.lock.hcl
-                    rm -rf .terraform/
                     
-                    # Remove workspace state files
+                    # Remove state directories (using -rf for directories)
+                    rm -rf .terraform/
                     rm -rf terraform.tfstate.d/
                     
                     # Clean any cached provider files
                     find . -name ".terraform" -type d -exec rm -rf {} + 2>/dev/null || true
+                    
+                    # Verify cleanup
+                    echo "📂 Directory contents after cleanup:"
+                    ls -la | grep -E "(terraform|\\.terraform)" || echo "✅ No terraform state files remaining"
                     
                     echo "✅ State cleaned successfully"
                     echo "📋 Ready for fresh deployment to new subscription"
