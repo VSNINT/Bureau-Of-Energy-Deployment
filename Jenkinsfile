@@ -267,7 +267,6 @@ pipeline {
                                 echo ""
                                 echo "🗑️ Destroying all resources in srs-${ENVIRONMENT}-rg..."
                                 
-                                # Simple destroy - no shared resources to worry about!
                                 terraform destroy -auto-approve \\
                                   -var="environment=${ENVIRONMENT}" \\
                                   -var="tenant_id=${ARM_TENANT_ID}" \\
@@ -311,7 +310,7 @@ pipeline {
                         
                         echo "🔐 === VM CREDENTIALS ==="
                         echo "👤 Username: azureadmin"
-                        echo "🔑 Password: [Use terraform output admin_password to view securely]"
+                        echo "🔑 Password: [Available via terraform output - run locally to view]"
                         echo ""
                         
                         echo "🌐 === PUBLIC IP ADDRESSES ==="
@@ -349,6 +348,94 @@ pipeline {
                         echo "💡 To view complete connection info:"
                         echo "terraform output quick_access"
                     '''
+                }
+            }
+        }
+        
+        stage('Save Admin Password to File') {
+            when {
+                expression { params.ACTION == 'apply' }
+            }
+            steps {
+                withCredentials([
+                    string(credentialsId: 'ARM_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
+                    string(credentialsId: 'ARM_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
+                    string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID'),
+                    string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
+                ]) {
+                    sh '''
+                        export PATH="$HOME/.local/bin:$PATH"
+                        
+                        echo "💾 Creating password file for download..."
+                        
+                        # Get VM credentials and connection info
+                        USERNAME=$(terraform output -raw admin_username)
+                        PASSWORD=$(terraform output -raw admin_password)
+                        
+                        # Create comprehensive credentials file
+                        cat > vm_credentials.txt << EOF
+====================================
+🔐 STAR-SURYA ${ENVIRONMENT} VM CREDENTIALS
+====================================
+Environment: ${ENVIRONMENT}
+Resource Group: srs-${ENVIRONMENT}-rg
+Deployment Date: $(date)
+                
+Login Credentials:
+Username: $USERNAME
+Password: $PASSWORD
+
+====================================
+🌐 VM CONNECTION DETAILS
+====================================
+EOF
+                        
+                        # Add VM public IPs and RDP commands
+                        echo "Public IP Addresses:" >> vm_credentials.txt
+                        terraform output vm_public_ips >> vm_credentials.txt 2>/dev/null || echo "IPs not available yet" >> vm_credentials.txt
+                        
+                        echo "" >> vm_credentials.txt
+                        echo "🎯 RDP Connection Commands:" >> vm_credentials.txt
+                        
+                        # Get individual IPs for RDP commands
+                        APP_IP=$(terraform output -json vm_public_ips 2>/dev/null | grep -o '"'${ENVIRONMENT}'-app":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+                        DB_IP=$(terraform output -json vm_public_ips 2>/dev/null | grep -o '"'${ENVIRONMENT}'-db":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+                        
+                        if [ ! -z "$APP_IP" ] && [ "$APP_IP" != "null" ] && [ "$APP_IP" != "" ]; then
+                            echo "Application Server: mstsc /v:$APP_IP" >> vm_credentials.txt
+                        fi
+                        if [ ! -z "$DB_IP" ] && [ "$DB_IP" != "null" ] && [ "$DB_IP" != "" ]; then
+                            echo "Database Server: mstsc /v:$DB_IP" >> vm_credentials.txt
+                        fi
+                        
+                        echo "" >> vm_credentials.txt
+                        echo "💾 Disk Configuration:" >> vm_credentials.txt
+                        echo "- All VMs: 256GB data disk (Standard HDD)" >> vm_credentials.txt
+                        if [ "${ENVIRONMENT}" = "prod" ]; then
+                            echo "- prod-db: OS disk uses Standard SSD (StandardSSD_LRS)" >> vm_credentials.txt
+                            echo "- prod-app: OS disk uses Standard HDD (Standard_LRS)" >> vm_credentials.txt
+                        else
+                            echo "- All VMs: OS disk uses Standard HDD (Standard_LRS)" >> vm_credentials.txt
+                        fi
+                        
+                        echo "" >> vm_credentials.txt
+                        echo "🔒 Private IP Addresses:" >> vm_credentials.txt
+                        terraform output vm_private_ips >> vm_credentials.txt 2>/dev/null || echo "Private IPs not available yet" >> vm_credentials.txt
+                        
+                        echo "" >> vm_credentials.txt
+                        echo "=====================================" >> vm_credentials.txt
+                        echo "Generated by Jenkins Build: ${BUILD_NUMBER}" >> vm_credentials.txt
+                        echo "=====================================" >> vm_credentials.txt
+                        
+                        echo "✅ Password file created: vm_credentials.txt"
+                        echo "📁 File size: $(wc -c < vm_credentials.txt) bytes"
+                    '''
+                    
+                    // Archive the credentials file as build artifact
+                    archiveArtifacts artifacts: 'vm_credentials.txt', fingerprint: true, allowEmptyArchive: false
+                    
+                    echo "🎯 VM credentials saved to artifacts!"
+                    echo "📥 Download 'vm_credentials.txt' from build artifacts section"
                 }
             }
         }
@@ -408,6 +495,7 @@ pipeline {
                     echo "✅ PROD: srs-prod-rg (Independent lifecycle)"
                     echo "✅ UAT: srs-uat-rg (Independent lifecycle)"
                     echo "✅ Clean destroy operations enabled"
+                    echo "💾 VM credentials available in artifacts: vm_credentials.txt"
                 }
             }
         }
