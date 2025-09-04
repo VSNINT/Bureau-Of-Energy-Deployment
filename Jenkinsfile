@@ -22,9 +22,6 @@ pipeline {
     environment {
         TF_IN_AUTOMATION = 'true'
         PATH = "$PATH:$HOME/.local/bin"
-        // New Azure tenant and subscription IDs
-        AZURE_TENANT_ID = 'a59c2881-bb68-4882-b6d6-2b89b702e235'
-        AZURE_SUBSCRIPTION_ID = 'f9eb7bb0-d778-4643-84ef-ce453b7dd896'
     }
     
     stages {
@@ -34,8 +31,6 @@ pipeline {
                 echo "🚀 Deploying to environment: ${params.ENVIRONMENT}"
                 echo "📋 Resource Group: srs-${params.ENVIRONMENT}-rg"
                 echo "⚡ Terraform action: ${params.ACTION}"
-                echo "🏢 Tenant: ${env.AZURE_TENANT_ID}"
-                echo "📋 Subscription: ${env.AZURE_SUBSCRIPTION_ID}"
             }
         }
         
@@ -62,68 +57,6 @@ pipeline {
             }
         }
         
-        stage('Azure Authentication') {
-            steps {
-                withCredentials([
-                    string(credentialsId: 'ARM_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
-                    string(credentialsId: 'ARM_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
-                    string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID'),
-                    string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
-                ]) {
-                    sh '''
-                        echo "🧹 Clearing Azure authentication cache..."
-                        
-                        # Clear all cached tokens and sessions
-                        az logout 2>/dev/null || echo "✅ Already logged out"
-                        az account clear 2>/dev/null || echo "✅ Account cache already cleared"
-                        az cache purge 2>/dev/null || echo "✅ CLI cache already cleared"
-                        
-                        # Remove any existing token files
-                        rm -rf ~/.azure/accessTokens.json 2>/dev/null || echo "✅ No token files to remove"
-                        rm -rf ~/.azure/azureProfile.json 2>/dev/null || echo "✅ No profile files to remove"
-                        
-                        echo "🔐 Authenticating with new Azure tenant..."
-                        echo "🎯 Target Tenant: a59c2881-bb68-4882-b6d6-2b89b702e235"
-                        echo "📋 Target Subscription: f9eb7bb0-d778-4643-84ef-ce453b7dd896"
-                        
-                        # Force fresh login to correct tenant
-                        az login --service-principal \
-                            --username "${ARM_CLIENT_ID}" \
-                            --password "${ARM_CLIENT_SECRET}" \
-                            --tenant "a59c2881-bb68-4882-b6d6-2b89b702e235"
-                        
-                        # Set correct subscription
-                        az account set --subscription "f9eb7bb0-d778-4643-84ef-ce453b7dd896"
-                        
-                        # Verify authentication is correct
-                        echo "✅ Authentication verification:"
-                        CURRENT_TENANT=$(az account show --query "tenantId" -o tsv)
-                        CURRENT_SUBSCRIPTION=$(az account show --query "id" -o tsv)
-                        
-                        echo "✅ Current Tenant: $CURRENT_TENANT"
-                        echo "✅ Current Subscription: $CURRENT_SUBSCRIPTION"
-                        
-                        # Validate we're in the right tenant/subscription
-                        if [ "$CURRENT_TENANT" = "a59c2881-bb68-4882-b6d6-2b89b702e235" ]; then
-                            echo "✅ Tenant authentication SUCCESS!"
-                        else
-                            echo "❌ Tenant mismatch! Expected: a59c2881-bb68-4882-b6d6-2b89b702e235, Got: $CURRENT_TENANT"
-                            exit 1
-                        fi
-                        
-                        if [ "$CURRENT_SUBSCRIPTION" = "f9eb7bb0-d778-4643-84ef-ce453b7dd896" ]; then
-                            echo "✅ Subscription authentication SUCCESS!"
-                        else
-                            echo "❌ Subscription mismatch! Expected: f9eb7bb0-d778-4643-84ef-ce453b7dd896, Got: $CURRENT_SUBSCRIPTION"
-                            exit 1
-                        fi
-                        
-                        echo "🎉 Azure authentication completed successfully!"
-                    '''
-                }
-            }
-        }
-        
         stage('Terraform Initialize') {
             steps {
                 withCredentials([
@@ -135,11 +68,14 @@ pipeline {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
                         
-                        # Override with correct tenant/subscription
+                        # Set correct Azure environment for your new tenant
                         export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
                         export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
                         
                         echo "🔧 Initializing Terraform..."
+                        echo "🏢 Tenant: ${ARM_TENANT_ID}"
+                        echo "📋 Subscription: ${ARM_SUBSCRIPTION_ID}"
+                        
                         terraform init -upgrade -input=false -migrate-state
                         
                         echo "🏗️ Setting up workspace for environment: ${ENVIRONMENT}"
@@ -167,7 +103,7 @@ pipeline {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
                         
-                        # Override with correct tenant/subscription
+                        # Set correct Azure environment
                         export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
                         export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
                         
@@ -197,7 +133,7 @@ pipeline {
                     sh """
                         export PATH="\$HOME/.local/bin:\$PATH"
                         
-                        # Override with correct tenant/subscription
+                        # Set correct Azure environment
                         export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
                         export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
                         
@@ -232,7 +168,7 @@ pipeline {
                             sh """
                                 export PATH="\$HOME/.local/bin:\$PATH"
                                 
-                                # Override with correct tenant/subscription
+                                # Set correct Azure environment
                                 export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
                                 export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
                                 
@@ -255,7 +191,7 @@ pipeline {
                             sh """
                                 export PATH="\$HOME/.local/bin:\$PATH"
                                 
-                                # Override with correct tenant/subscription
+                                # Set correct Azure environment
                                 export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
                                 export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
                                 
@@ -288,7 +224,7 @@ pipeline {
                         sh '''
                             export PATH="$HOME/.local/bin:$PATH"
                             
-                            # Override with correct tenant/subscription
+                            # Set correct Azure environment
                             export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
                             export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
                             
@@ -337,7 +273,7 @@ pipeline {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
                         
-                        # Override with correct tenant/subscription
+                        # Set correct Azure environment
                         export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
                         export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
                         
@@ -359,21 +295,21 @@ pipeline {
                         echo ""
                         
                         echo "🌐 === PUBLIC IP ADDRESSES ==="
-                        terraform output vm_public_ips
+                        terraform output vm_public_ips || echo "Public IPs not available"
                         echo ""
                         
                         echo "🔒 === PRIVATE IP ADDRESSES ==="
-                        terraform output vm_private_ips
+                        terraform output vm_private_ips || echo "Private IPs not available"
                         echo ""
                         
                         echo "🎯 === QUICK RDP COMMANDS ==="
-                        APP_IP=$(terraform output -json vm_public_ips | grep -o '"'${ENVIRONMENT}'-app":"[^"]*"' | cut -d'"' -f4)
-                        DB_IP=$(terraform output -json vm_public_ips | grep -o '"'${ENVIRONMENT}'-db":"[^"]*"' | cut -d'"' -f4)
+                        APP_IP=$(terraform output -json vm_public_ips 2>/dev/null | grep -o '"'${ENVIRONMENT}'-app":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
+                        DB_IP=$(terraform output -json vm_public_ips 2>/dev/null | grep -o '"'${ENVIRONMENT}'-db":"[^"]*"' | cut -d'"' -f4 2>/dev/null || echo "")
                         
-                        if [ ! -z "$APP_IP" ]; then
+                        if [ ! -z "$APP_IP" ] && [ "$APP_IP" != "null" ] && [ "$APP_IP" != "" ]; then
                             echo "Application Server: mstsc /v:$APP_IP"
                         fi
-                        if [ ! -z "$DB_IP" ]; then
+                        if [ ! -z "$DB_IP" ] && [ "$DB_IP" != "null" ] && [ "$DB_IP" != "" ]; then
                             echo "Database Server: mstsc /v:$DB_IP"
                         fi
                         echo ""
@@ -395,9 +331,24 @@ pipeline {
         always {
             script {
                 echo "🗃️ Archiving state files for workspace: ${params.ENVIRONMENT}"
-                archiveArtifacts artifacts: 'terraform.tfstate*', fingerprint: true, allowEmptyArchive: true
-                archiveArtifacts artifacts: '.terraform.lock.hcl', fingerprint: true, allowEmptyArchive: true
-                archiveArtifacts artifacts: "tfplan-${params.ENVIRONMENT}", fingerprint: true, allowEmptyArchive: true
+                
+                try {
+                    archiveArtifacts artifacts: 'terraform.tfstate*', fingerprint: true, allowEmptyArchive: true
+                } catch (Exception e) {
+                    echo "⚠️ Could not archive state files: ${e.getMessage()}"
+                }
+                
+                try {
+                    archiveArtifacts artifacts: '.terraform.lock.hcl', fingerprint: true, allowEmptyArchive: true
+                } catch (Exception e) {
+                    echo "⚠️ Could not archive lock file: ${e.getMessage()}"
+                }
+                
+                try {
+                    archiveArtifacts artifacts: "tfplan-${params.ENVIRONMENT}", fingerprint: true, allowEmptyArchive: true
+                } catch (Exception e) {
+                    echo "⚠️ Could not archive plan file: ${e.getMessage()}"
+                }
                 
                 if (params.ACTION == 'destroy' && currentBuild.currentResult == 'SUCCESS') {
                     echo "🧹 Cleaning workspace after successful destroy of ${params.ENVIRONMENT}"
