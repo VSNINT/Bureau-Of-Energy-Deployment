@@ -5,7 +5,7 @@ pipeline {
         choice(
             name: 'ENVIRONMENT',
             choices: ['prod', 'uat'],
-            description: 'Select the environment to deploy (DR removed)'
+            description: 'Select the environment to deploy'
         )
         choice(
             name: 'ACTION',
@@ -68,13 +68,8 @@ pipeline {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
                         
-                        # Set correct Azure environment for your new tenant
-                        export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
-                        export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
-                        
                         echo "🔧 Initializing Terraform..."
-                        echo "🏢 Tenant: ${ARM_TENANT_ID}"
-                        echo "📋 Subscription: ${ARM_SUBSCRIPTION_ID}"
+                        echo "🔐 Using secure Azure credentials from Jenkins vault"
                         
                         terraform init -upgrade -input=false -migrate-state
                         
@@ -103,10 +98,6 @@ pipeline {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
                         
-                        # Set correct Azure environment
-                        export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
-                        export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
-                        
                         echo "✅ Validating Terraform configuration..."
                         terraform fmt
                         terraform validate
@@ -130,22 +121,17 @@ pipeline {
                     string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID'),
                     string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
                 ]) {
-                    sh """
-                        export PATH="\$HOME/.local/bin:\$PATH"
-                        
-                        # Set correct Azure environment
-                        export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
-                        export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
+                    sh '''
+                        export PATH="$HOME/.local/bin:$PATH"
                         
                         echo "📋 Planning Terraform deployment..."
-                        echo "🎯 Environment: ${params.ENVIRONMENT}"
-                        echo "📋 Resource Group: srs-${params.ENVIRONMENT}-rg"
-                        echo "🏗️ Workspace: \$(terraform workspace show)"
-                        echo "🏢 Tenant: a59c2881-bb68-4882-b6d6-2b89b702e235"
-                        echo "📋 Subscription: f9eb7bb0-d778-4643-84ef-ce453b7dd896"
+                        echo "🎯 Environment: ${ENVIRONMENT}"
+                        echo "📋 Resource Group: srs-${ENVIRONMENT}-rg"
+                        echo "🏗️ Workspace: $(terraform workspace show)"
+                        echo "🔐 Using secure Azure credentials"
                         
-                        terraform plan -var="environment=${params.ENVIRONMENT}" -out=tfplan-${params.ENVIRONMENT}
-                    """
+                        terraform plan -var="environment=${ENVIRONMENT}" -out=tfplan-${ENVIRONMENT}
+                    '''
                     
                     archiveArtifacts artifacts: "tfplan-${params.ENVIRONMENT}", fingerprint: true, allowEmptyArchive: true
                 }
@@ -165,20 +151,16 @@ pipeline {
                             string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID'),
                             string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
                         ]) {
-                            sh """
-                                export PATH="\$HOME/.local/bin:\$PATH"
-                                
-                                # Set correct Azure environment
-                                export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
-                                export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
+                            sh '''
+                                export PATH="$HOME/.local/bin:$PATH"
                                 
                                 echo "🚀 Applying Terraform configuration..."
-                                echo "🎯 Environment: ${params.ENVIRONMENT}"
-                                echo "📋 Resource Group: srs-${params.ENVIRONMENT}-rg"
-                                echo "🏗️ Workspace: \$(terraform workspace show)"
+                                echo "🎯 Environment: ${ENVIRONMENT}"
+                                echo "📋 Resource Group: srs-${ENVIRONMENT}-rg"
+                                echo "🏗️ Workspace: $(terraform workspace show)"
                                 
-                                terraform apply -auto-approve -var="environment=${params.ENVIRONMENT}"
-                            """
+                                terraform apply -auto-approve -var="environment=${ENVIRONMENT}"
+                            '''
                         }
                     } else {
                         input message: "🚀 Approve Terraform Apply for ${params.ENVIRONMENT} environment?", ok: 'Apply'
@@ -188,20 +170,16 @@ pipeline {
                             string(credentialsId: 'ARM_TENANT_ID', variable: 'ARM_TENANT_ID'),
                             string(credentialsId: 'ARM_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
                         ]) {
-                            sh """
-                                export PATH="\$HOME/.local/bin:\$PATH"
-                                
-                                # Set correct Azure environment
-                                export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
-                                export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
+                            sh '''
+                                export PATH="$HOME/.local/bin:$PATH"
                                 
                                 echo "🚀 Applying Terraform configuration..."
-                                echo "🎯 Environment: ${params.ENVIRONMENT}"
-                                echo "📋 Resource Group: srs-${params.ENVIRONMENT}-rg"
-                                echo "🏗️ Workspace: \$(terraform workspace show)"
+                                echo "🎯 Environment: ${ENVIRONMENT}"
+                                echo "📋 Resource Group: srs-${ENVIRONMENT}-rg"
+                                echo "🏗️ Workspace: $(terraform workspace show)"
                                 
-                                terraform apply -auto-approve -var="environment=${params.ENVIRONMENT}"
-                            """
+                                terraform apply -auto-approve -var="environment=${ENVIRONMENT}"
+                            '''
                         }
                     }
                 }
@@ -224,16 +202,11 @@ pipeline {
                         sh '''
                             export PATH="$HOME/.local/bin:$PATH"
                             
-                            # Set correct Azure environment
-                            export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
-                            export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
-                            
                             echo "🗑️ === CLEAN DESTROY OPERATION ==="
                             echo "🎯 Environment: ${ENVIRONMENT}"
                             echo "📋 Resource Group: srs-${ENVIRONMENT}-rg"
                             echo "🏗️ Workspace: $(terraform workspace show)"
-                            echo "🏢 Tenant: a59c2881-bb68-4882-b6d6-2b89b702e235"
-                            echo "📋 Subscription: f9eb7bb0-d778-4643-84ef-ce453b7dd896"
+                            echo "🔐 Using secure Azure credentials"
                             
                             RESOURCE_COUNT=$(terraform state list 2>/dev/null | wc -l)
                             echo "📊 Resources in workspace state: $RESOURCE_COUNT"
@@ -273,10 +246,6 @@ pipeline {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
                         
-                        # Set correct Azure environment
-                        export ARM_TENANT_ID="a59c2881-bb68-4882-b6d6-2b89b702e235"
-                        export ARM_SUBSCRIPTION_ID="f9eb7bb0-d778-4643-84ef-ce453b7dd896"
-                        
                         echo ""
                         echo "=========================================="
                         echo "🎉 DEPLOYMENT SUCCESSFUL!"
@@ -284,14 +253,12 @@ pipeline {
                         echo "🎯 Environment: ${ENVIRONMENT}"
                         echo "📋 Resource Group: srs-${ENVIRONMENT}-rg"
                         echo "🏗️ Workspace: $(terraform workspace show)"
-                        echo "🏢 Tenant: a59c2881-bb68-4882-b6d6-2b89b702e235"
-                        echo "📋 Subscription: f9eb7bb0-d778-4643-84ef-ce453b7dd896"
+                        echo "🔐 Using secure Azure credentials"
                         echo ""
                         
                         echo "🔐 === VM CREDENTIALS ==="
                         echo "👤 Username: azureadmin"
-                        PASSWORD=$(terraform output -raw admin_password 2>/dev/null || echo "Password not available")
-                        echo "🔑 Password: [${PASSWORD}]"
+                        echo "🔑 Password: [Available via terraform output - run locally to view]"
                         echo ""
                         
                         echo "🌐 === PUBLIC IP ADDRESSES ==="
@@ -318,8 +285,7 @@ pipeline {
                         echo "Environment: ${ENVIRONMENT}"
                         echo "Resource Group: srs-${ENVIRONMENT}-rg"
                         echo "Resources: $(terraform state list 2>/dev/null | wc -l)"
-                        echo "Tenant: a59c2881-bb68-4882-b6d6-2b89b702e235"
-                        echo "Subscription: f9eb7bb0-d778-4643-84ef-ce453b7dd896"
+                        echo "Authentication: ✅ Secure"
                         echo "=========================================="
                     '''
                 }
@@ -364,8 +330,7 @@ pipeline {
                 echo "${actionEmoji[params.ACTION]} Terraform ${params.ACTION} completed successfully!"
                 echo "🎯 Environment: ${params.ENVIRONMENT}"
                 echo "📋 Resource Group: srs-${params.ENVIRONMENT}-rg"
-                echo "🏢 Tenant: a59c2881-bb68-4882-b6d6-2b89b702e235"
-                echo "📋 Subscription: f9eb7bb0-d778-4643-84ef-ce453b7dd896"
+                echo "🔐 Security: All credentials protected"
                 
                 if (params.ACTION == 'destroy') {
                     echo "🗑️ Complete environment cleanup - no shared resources left behind!"
@@ -378,8 +343,6 @@ pipeline {
                 echo "${actionEmoji[params.ACTION]} Terraform ${params.ACTION} failed!"
                 echo "🎯 Environment: ${params.ENVIRONMENT}"
                 echo "📋 Resource Group: srs-${params.ENVIRONMENT}-rg"
-                echo "🏢 Tenant: a59c2881-bb68-4882-b6d6-2b89b702e235"
-                echo "📋 Subscription: f9eb7bb0-d778-4643-84ef-ce453b7dd896"
                 echo "🔍 Check the logs above for error details"
             }
         }
