@@ -184,7 +184,24 @@ resource "azurerm_network_interface" "vm" {
   }
 }
 
-# Windows Virtual Machines WITH DATA DISKS
+# ===== ADDED: MANAGED DATA DISKS =====
+resource "azurerm_managed_disk" "data_disk" {
+  for_each = local.current_env.vms
+  
+  name                 = "star-surya-${each.key}-data-disk"
+  location             = local.resource_group_obj.location
+  resource_group_name  = local.resource_group_obj.name
+  storage_account_type = "Standard_LRS"  # HDD as requested
+  create_option        = "Empty"
+  disk_size_gb         = 256             # 256GB as requested
+  
+  tags = merge(local.common_tags, {
+    Purpose = "Data Storage"
+    VMName  = "star-surya-${each.key}-vm"
+  })
+}
+
+# Windows Virtual Machines (FIXED - removed invalid additional_unattended_content block)
 resource "azurerm_windows_virtual_machine" "vm" {
   for_each = local.current_env.vms
   
@@ -219,32 +236,9 @@ resource "azurerm_windows_virtual_machine" "vm" {
     version   = "latest"
   }
 
-  # ===== ADDED: DATA DISK CONFIGURATION =====
-  additional_unattended_content {
-    content = "<AutoLogon><Password><Value>${random_password.vm_password.result}</Value></Password></AutoLogon>"
-    setting = "AutoLogon"
-  }
-
   boot_diagnostics {
     storage_account_uri = null
   }
-}
-
-# ===== ADDED: MANAGED DATA DISKS =====
-resource "azurerm_managed_disk" "data_disk" {
-  for_each = local.current_env.vms
-  
-  name                 = "star-surya-${each.key}-data-disk"
-  location             = local.resource_group_obj.location
-  resource_group_name  = local.resource_group_obj.name
-  storage_account_type = "Standard_LRS"  # HDD as requested
-  create_option        = "Empty"
-  disk_size_gb         = 256             # 256GB as requested
-  
-  tags = merge(local.common_tags, {
-    Purpose = "Data Storage"
-    VMName  = "star-surya-${each.key}-vm"
-  })
 }
 
 # ===== ADDED: DATA DISK ATTACHMENTS =====
