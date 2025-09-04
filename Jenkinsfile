@@ -36,32 +36,32 @@ pipeline {
                 echo "🚀 Deploying to environment: ${params.ENVIRONMENT}"
                 echo "📋 Resource Group: srs-${params.ENVIRONMENT}-rg"
                 echo "⚡ Terraform action: ${params.ACTION}"
-                if (params.CLEAN_STATE) {
-                    echo "🧹 State cleanup enabled for subscription change"
+                script {
+                    if (params.CLEAN_STATE) {
+                        echo "🧹 State cleanup enabled for subscription change"
+                    }
                 }
             }
         }
         
         stage('Setup Terraform') {
             steps {
-                script {
-                    sh '''
-                        if ! command -v terraform &> /dev/null; then
-                            echo "📥 Installing Terraform..."
-                            wget https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
-                            unzip terraform_1.5.7_linux_amd64.zip
-                            chmod +x terraform
-                            mkdir -p ~/.local/bin
-                            mv terraform ~/.local/bin/
-                            rm terraform_1.5.7_linux_amd64.zip
-                            echo "✅ Terraform installed successfully"
-                        else
-                            echo "✅ Terraform is already installed"
-                        fi
-                        export PATH="$HOME/.local/bin:$PATH"
-                        terraform version
-                    '''
-                }
+                sh '''
+                    if ! command -v terraform &> /dev/null; then
+                        echo "📥 Installing Terraform..."
+                        wget https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
+                        unzip terraform_1.5.7_linux_amd64.zip
+                        chmod +x terraform
+                        mkdir -p ~/.local/bin
+                        mv terraform ~/.local/bin/
+                        rm terraform_1.5.7_linux_amd64.zip
+                        echo "✅ Terraform installed successfully"
+                    else
+                        echo "✅ Terraform is already installed"
+                    fi
+                    export PATH="$HOME/.local/bin:$PATH"
+                    terraform version
+                '''
             }
         }
         
