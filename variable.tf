@@ -23,7 +23,7 @@ variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)
   default = {
-    Project    = "star-surya"
+    Project    = "star-shunya"    # CHANGED: surya → shunya
     ManagedBy  = "Terraform"
     Owner      = "IT-Operations"
     CostCenter = "IT-001"
@@ -41,7 +41,7 @@ variable "subscription_id" {
 }
 
 locals {
-  # Environment-specific configuration - ONLY UAT VM SIZES CHANGED
+  # Environment-specific configuration - RENAMED TO SHUNYA
   env_config = {
     prod = {
       vnet_cidr    = "10.0.0.0/16"
@@ -61,8 +61,8 @@ locals {
       app_subnet   = "10.1.1.0/24"
       db_subnet    = "10.1.2.0/24"
       vm_sizes     = {
-        app = "Standard_D4as_v5"     # UAT CHANGED: 4 vCPU, 16GB RAM
-        db  = "Standard_E4as_v5"     # UAT CHANGED: 4 vCPU, 32GB RAM
+        app = "Standard_D4as_v5"     # UAT: 4 vCPU, 16GB RAM
+        db  = "Standard_E4as_v5"     # UAT: 4 vCPU, 32GB RAM
       }
       vms = {
         "uat-app" = { type = "application" }

@@ -1,4 +1,4 @@
-# main.tf - Complete version with data disks and Standard SSD for prod DB OS disk
+# main.tf - Complete version with SHUNYA naming and data disks
 # Data source for client configuration
 data "azurerm_client_config" "current" {}
 
@@ -33,34 +33,34 @@ locals {
   resource_group_obj  = var.environment == "prod" ? azurerm_resource_group.prod[0] : azurerm_resource_group.uat[0]
 }
 
-# Virtual Network - Environment specific
+# Virtual Network - RENAMED TO SHUNYA
 resource "azurerm_virtual_network" "main" {
-  name                = "star-surya-${var.environment}-vnet"
+  name                = "star-shunya-${var.environment}-vnet"
   address_space       = [local.current_env.vnet_cidr]
   location            = local.resource_group_obj.location
   resource_group_name = local.resource_group_obj.name
   tags                = local.common_tags
 }
 
-# Application Subnet
+# Application Subnet - RENAMED TO SHUNYA
 resource "azurerm_subnet" "app" {
-  name                 = "star-surya-${var.environment}-app-subnet"
+  name                 = "star-shunya-${var.environment}-app-subnet"
   resource_group_name  = local.resource_group_obj.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [local.current_env.app_subnet]
 }
 
-# Database Subnet
+# Database Subnet - RENAMED TO SHUNYA
 resource "azurerm_subnet" "db" {
-  name                 = "star-surya-${var.environment}-db-subnet"
+  name                 = "star-shunya-${var.environment}-db-subnet"
   resource_group_name  = local.resource_group_obj.name
   virtual_network_name = azurerm_virtual_network.main.name
   address_prefixes     = [local.current_env.db_subnet]
 }
 
-# Network Security Group for Application Tier
+# Network Security Group for Application Tier - RENAMED TO SHUNYA
 resource "azurerm_network_security_group" "app" {
-  name                = "star-surya-${var.environment}-app-nsg"
+  name                = "star-shunya-${var.environment}-app-nsg"
   location            = local.resource_group_obj.location
   resource_group_name = local.resource_group_obj.name
   tags                = local.common_tags
@@ -114,9 +114,9 @@ resource "azurerm_network_security_group" "app" {
   }
 }
 
-# Network Security Group for Database Tier
+# Network Security Group for Database Tier - RENAMED TO SHUNYA
 resource "azurerm_network_security_group" "db" {
-  name                = "star-surya-${var.environment}-db-nsg"
+  name                = "star-shunya-${var.environment}-db-nsg"
   location            = local.resource_group_obj.location
   resource_group_name = local.resource_group_obj.name
   tags                = local.common_tags
@@ -157,10 +157,10 @@ resource "azurerm_subnet_network_security_group_association" "db" {
   network_security_group_id = azurerm_network_security_group.db.id
 }
 
-# Public IP addresses for VMs
+# Public IP addresses for VMs - RENAMED TO SHUNYA
 resource "azurerm_public_ip" "vm" {
   for_each            = local.current_env.vms
-  name                = "star-surya-${each.key}-pip"
+  name                = "star-shunya-${each.key}-pip"
   location            = local.resource_group_obj.location
   resource_group_name = local.resource_group_obj.name
   allocation_method   = "Static"
@@ -168,10 +168,10 @@ resource "azurerm_public_ip" "vm" {
   tags                = local.common_tags
 }
 
-# Network Interfaces for VMs
+# Network Interfaces for VMs - RENAMED TO SHUNYA
 resource "azurerm_network_interface" "vm" {
   for_each            = local.current_env.vms
-  name                = "star-surya-${each.key}-nic"
+  name                = "star-shunya-${each.key}-nic"
   location            = local.resource_group_obj.location
   resource_group_name = local.resource_group_obj.name
   tags                = local.common_tags
@@ -184,11 +184,11 @@ resource "azurerm_network_interface" "vm" {
   }
 }
 
-# ===== MANAGED DATA DISKS (256GB HDD for each VM) =====
+# ===== MANAGED DATA DISKS (256GB HDD for each VM) - RENAMED TO SHUNYA =====
 resource "azurerm_managed_disk" "data_disk" {
   for_each = local.current_env.vms
   
-  name                 = "star-surya-${each.key}-data-disk"
+  name                 = "star-shunya-${each.key}-data-disk"
   location             = local.resource_group_obj.location
   resource_group_name  = local.resource_group_obj.name
   storage_account_type = "Standard_LRS"  # HDD for data disks
@@ -197,15 +197,15 @@ resource "azurerm_managed_disk" "data_disk" {
   
   tags = merge(local.common_tags, {
     Purpose = "Data Storage"
-    VMName  = "star-surya-${each.key}-vm"
+    VMName  = "star-shunya-${each.key}-vm"
   })
 }
 
-# Windows Virtual Machines (WITH STANDARD SSD FOR PROD DB OS DISK ONLY)
+# Windows Virtual Machines - RENAMED TO SHUNYA
 resource "azurerm_windows_virtual_machine" "vm" {
   for_each = local.current_env.vms
   
-  name                = "star-surya-${each.key}-vm"
+  name                = "star-shunya-${each.key}-vm"
   computer_name       = "ss-${each.key}-vm"
   location            = local.resource_group_obj.location
   resource_group_name = local.resource_group_obj.name
@@ -223,7 +223,7 @@ resource "azurerm_windows_virtual_machine" "vm" {
     azurerm_network_interface.vm[each.key].id,
   ]
 
-  # CORRECTED: Standard SSD only for prod database VM OS disk
+  # CONDITIONAL OS DISK: Standard SSD only for prod database VM
   os_disk {
     caching              = "ReadWrite"
     disk_size_gb         = 256
@@ -264,7 +264,7 @@ resource "azurerm_mssql_virtual_machine" "db" {
 }
 
 # ==========================================
-# OUTPUTS (UPDATED WITH DISK CONFIGURATION)
+# OUTPUTS (UPDATED WITH SHUNYA NAMING)
 # ==========================================
 output "admin_password" {
   value       = random_password.vm_password.result
@@ -302,7 +302,7 @@ output "data_disk_info" {
       name     = v.name
       size_gb  = v.disk_size_gb
       type     = v.storage_account_type
-      vm_name  = "star-surya-${k}-vm"
+      vm_name  = "star-shunya-${k}-vm"
     }
   }
   description = "Information about data disks attached to VMs"
@@ -315,11 +315,11 @@ output "vm_connection_info" {
       private_ip     = azurerm_network_interface.vm[k].private_ip_address
       rdp_command    = "mstsc /v:${v.ip_address}"
       vm_type        = local.current_env.vms[k].type
-      vm_name        = "star-surya-${k}-vm"
+      vm_name        = "star-shunya-${k}-vm"
       vm_size        = local.current_env.vm_sizes[local.current_env.vms[k].type == "application" ? "app" : "db"]
       resource_group = local.resource_group_name
       os_disk_type   = (var.environment == "prod" && k == "prod-db") ? "StandardSSD_LRS (Standard SSD)" : "Standard_LRS (HDD)"
-      data_disk      = "star-surya-${k}-data-disk (256GB HDD)"
+      data_disk      = "star-shunya-${k}-data-disk (256GB HDD)"
     }
   }
   description = "Complete connection information for all VMs including disk info"
@@ -328,7 +328,7 @@ output "vm_connection_info" {
 output "quick_access" {
   value = <<-EOT
     ====================================
-    🔐 STAR-SURYA ${upper(var.environment)} ENVIRONMENT
+    🔐 STAR-SHUNYA ${upper(var.environment)} ENVIRONMENT
     ====================================
     Resource Group: ${local.resource_group_name}
     Username: ${var.admin_username}
@@ -337,7 +337,7 @@ output "quick_access" {
     ====================================
     🌐 RDP CONNECTIONS
     ====================================
-    ${join("\n    ", [for k, v in azurerm_public_ip.vm : "star-surya-${k}-vm: mstsc /v:${v.ip_address}"])}
+    ${join("\n    ", [for k, v in azurerm_public_ip.vm : "star-shunya-${k}-vm: mstsc /v:${v.ip_address}"])}
     
     ====================================
     💾 DISK CONFIGURATION
