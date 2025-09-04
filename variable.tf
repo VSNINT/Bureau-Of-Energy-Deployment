@@ -41,15 +41,15 @@ variable "subscription_id" {
 }
 
 locals {
-  # Environment-specific configuration
+  # Environment-specific configuration with UPDATED VM SIZES
   env_config = {
     prod = {
       vnet_cidr    = "10.0.0.0/16"
       app_subnet   = "10.0.1.0/24"
       db_subnet    = "10.0.2.0/24"
       vm_sizes     = {
-        app = "Standard_D16as_v5"
-        db  = "Standard_E16as_v5"
+        app = "Standard_D16as_v5"    # App VMs remain the same
+        db  = "Standard_E8as_v5"     # UPDATED: Database VMs to E8as_v5
       }
       vms = {
         "prod-app" = { type = "application" }
@@ -61,8 +61,8 @@ locals {
       app_subnet   = "10.1.1.0/24"
       db_subnet    = "10.1.2.0/24"
       vm_sizes     = {
-        app = "Standard_D8as_v5"
-        db  = "Standard_E8as_v5"
+        app = "Standard_D8as_v5"     # App VMs remain the same
+        db  = "Standard_E8as_v5"     # UPDATED: Database VMs to E8as_v5
       }
       vms = {
         "uat-app" = { type = "application" }
