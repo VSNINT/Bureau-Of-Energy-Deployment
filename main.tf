@@ -1,5 +1,4 @@
-# main.tf - Star Surya Infrastructure with Separate Resource Groups
-
+# main.tf - Clean version without provider blocks
 
 # Data source for client configuration
 data "azurerm_client_config" "current" {}
@@ -20,8 +19,6 @@ resource "azurerm_resource_group" "uat" {
   name     = "srs-uat-rg"
   location = var.location
   tags     = local.common_tags
-  
-  # No lifecycle prevent_destroy - allows clean destruction
 }
 
 resource "azurerm_resource_group" "prod" {
@@ -29,13 +26,10 @@ resource "azurerm_resource_group" "prod" {
   name     = "srs-prod-rg"
   location = var.location
   tags     = local.common_tags
-  
-  # No lifecycle prevent_destroy - allows clean destruction
 }
 
 # Local values for dynamic resource group selection
 locals {
-  # Select the appropriate resource group name and object
   resource_group_name = var.environment == "prod" ? "srs-prod-rg" : "srs-uat-rg"
   resource_group_obj  = var.environment == "prod" ? azurerm_resource_group.prod[0] : azurerm_resource_group.uat[0]
 }
