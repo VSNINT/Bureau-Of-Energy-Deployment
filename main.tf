@@ -1,5 +1,4 @@
-# main.tf - Clean version without provider blocks
-
+# main.tf - Clean version with data disks added
 # Data source for client configuration
 data "azurerm_client_config" "current" {}
 
@@ -185,7 +184,7 @@ resource "azurerm_network_interface" "vm" {
   }
 }
 
-# Windows Virtual Machines
+# Windows Virtual Machines WITH DATA DISKS
 resource "azurerm_windows_virtual_machine" "vm" {
   for_each = local.current_env.vms
   
@@ -220,9 +219,42 @@ resource "azurerm_windows_virtual_machine" "vm" {
     version   = "latest"
   }
 
+  # ===== ADDED: DATA DISK CONFIGURATION =====
+  additional_unattended_content {
+    content = "<AutoLogon><Password><Value>${random_password.vm_password.result}</Value></Password></AutoLogon>"
+    setting = "AutoLogon"
+  }
+
   boot_diagnostics {
     storage_account_uri = null
   }
+}
+
+# ===== ADDED: MANAGED DATA DISKS =====
+resource "azurerm_managed_disk" "data_disk" {
+  for_each = local.current_env.vms
+  
+  name                 = "star-surya-${each.key}-data-disk"
+  location             = local.resource_group_obj.location
+  resource_group_name  = local.resource_group_obj.name
+  storage_account_type = "Standard_LRS"  # HDD as requested
+  create_option        = "Empty"
+  disk_size_gb         = 256             # 256GB as requested
+  
+  tags = merge(local.common_tags, {
+    Purpose = "Data Storage"
+    VMName  = "star-surya-${each.key}-vm"
+  })
+}
+
+# ===== ADDED: DATA DISK ATTACHMENTS =====
+resource "azurerm_virtual_machine_data_disk_attachment" "data_disk_attachment" {
+  for_each = local.current_env.vms
+  
+  managed_disk_id    = azurerm_managed_disk.data_disk[each.key].id
+  virtual_machine_id = azurerm_windows_virtual_machine.vm[each.key].id
+  lun                = 0
+  caching            = "ReadWrite"
 }
 
 # SQL Virtual Machine Configuration
@@ -230,18 +262,15 @@ resource "azurerm_mssql_virtual_machine" "db" {
   for_each           = { for k, v in local.current_env.vms : k => v if v.type == "database" }
   virtual_machine_id = azurerm_windows_virtual_machine.vm[each.key].id
   sql_license_type   = "AHUB"
-  
   sql_connectivity_type = "PRIVATE"
   sql_connectivity_port = 1433
-  
   depends_on = [azurerm_windows_virtual_machine.vm]
   tags = local.common_tags
 }
 
 # ==========================================
-# OUTPUTS
+# OUTPUTS (UPDATED)
 # ==========================================
-
 output "admin_password" {
   value       = random_password.vm_password.result
   sensitive   = true
@@ -272,6 +301,18 @@ output "vm_private_ips" {
   description = "Private IP addresses of all VMs"
 }
 
+output "data_disk_info" {
+  value = {
+    for k, v in azurerm_managed_disk.data_disk : k => {
+      name     = v.name
+      size_gb  = v.disk_size_gb
+      type     = v.storage_account_type
+      vm_name  = "star-surya-${k}-vm"
+    }
+  }
+  description = "Information about data disks attached to VMs"
+}
+
 output "vm_connection_info" {
   value = {
     for k, v in azurerm_public_ip.vm : k => {
@@ -282,9 +323,10 @@ output "vm_connection_info" {
       vm_name       = "star-surya-${k}-vm"
       vm_size       = local.current_env.vm_sizes[local.current_env.vms[k].type == "application" ? "app" : "db"]
       resource_group = local.resource_group_name
+      data_disk     = "star-surya-${k}-data-disk (256GB HDD)"
     }
   }
-  description = "Complete connection information for all VMs"
+  description = "Complete connection information for all VMs including data disk info"
 }
 
 output "quick_access" {
@@ -302,6 +344,11 @@ output "quick_access" {
     ${join("\n    ", [for k, v in azurerm_public_ip.vm : "star-surya-${k}-vm: mstsc /v:${v.ip_address}"])}
     
     ====================================
+    💾 DATA DISKS (256GB HDD each)
+    ====================================
+    ${join("\n    ", [for k, v in azurerm_managed_disk.data_disk : "${k}: ${v.name} (${v.disk_size_gb}GB ${v.storage_account_type})"])}
+    
+    ====================================
     📊 DEPLOYMENT SUMMARY
     ====================================
     Environment: ${var.environment}
@@ -309,8 +356,9 @@ output "quick_access" {
     VNet: ${azurerm_virtual_network.main.name}
     Location: ${var.location}
     VMs Deployed: ${length(local.current_env.vms)}
+    Data Disks: ${length(local.current_env.vms)} x 256GB HDD
     ====================================
   EOT
   sensitive   = true
-  description = "Quick access summary"
+  description = "Quick access summary with data disk information"
 }
