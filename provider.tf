@@ -10,6 +10,7 @@ terraform {
       version = "~> 3.5"
     }
   }
+  backend "local" {}  # ADD THIS LINE
 }
 
 provider "azurerm" {

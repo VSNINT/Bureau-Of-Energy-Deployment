@@ -68,7 +68,7 @@ pipeline {
                     sh '''
                         export PATH="$HOME/.local/bin:$PATH"
                         echo "🔧 Initializing Terraform..."
-                        terraform init -upgrade -input=false
+                        terraform init -upgrade -input=false -migrate-state
                         
                         echo "🏗️ Setting up workspace for environment: ${ENVIRONMENT}"
                         terraform workspace select ${ENVIRONMENT} || terraform workspace new ${ENVIRONMENT}
