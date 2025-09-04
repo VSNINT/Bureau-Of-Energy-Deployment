@@ -1,4 +1,4 @@
-# main.tf - Clean version with data disks added
+# main.tf - Complete version with data disks and Standard SSD for prod DB OS disk
 # Data source for client configuration
 data "azurerm_client_config" "current" {}
 
@@ -184,14 +184,14 @@ resource "azurerm_network_interface" "vm" {
   }
 }
 
-# ===== ADDED: MANAGED DATA DISKS =====
+# ===== MANAGED DATA DISKS (256GB HDD for each VM) =====
 resource "azurerm_managed_disk" "data_disk" {
   for_each = local.current_env.vms
   
   name                 = "star-surya-${each.key}-data-disk"
   location             = local.resource_group_obj.location
   resource_group_name  = local.resource_group_obj.name
-  storage_account_type = "Standard_LRS"  # HDD as requested
+  storage_account_type = "Standard_LRS"  # HDD for data disks
   create_option        = "Empty"
   disk_size_gb         = 256             # 256GB as requested
   
@@ -201,7 +201,7 @@ resource "azurerm_managed_disk" "data_disk" {
   })
 }
 
-# Windows Virtual Machines (FIXED - removed invalid additional_unattended_content block)
+# Windows Virtual Machines (WITH STANDARD SSD FOR PROD DB OS DISK ONLY)
 resource "azurerm_windows_virtual_machine" "vm" {
   for_each = local.current_env.vms
   
@@ -215,7 +215,7 @@ resource "azurerm_windows_virtual_machine" "vm" {
   license_type        = "Windows_Server"
   
   tags = merge(local.common_tags, {
-    Role = each.value.type
+    Role   = each.value.type
     VMSize = local.current_env.vm_sizes[each.value.type == "application" ? "app" : "db"]
   })
 
@@ -223,10 +223,11 @@ resource "azurerm_windows_virtual_machine" "vm" {
     azurerm_network_interface.vm[each.key].id,
   ]
 
+  # CORRECTED: Standard SSD only for prod database VM OS disk
   os_disk {
     caching              = "ReadWrite"
     disk_size_gb         = 256
-    storage_account_type = "Standard_LRS"
+    storage_account_type = (var.environment == "prod" && each.key == "prod-db") ? "StandardSSD_LRS" : "Standard_LRS"
   }
 
   source_image_reference {
@@ -241,7 +242,7 @@ resource "azurerm_windows_virtual_machine" "vm" {
   }
 }
 
-# ===== ADDED: DATA DISK ATTACHMENTS =====
+# ===== DATA DISK ATTACHMENTS =====
 resource "azurerm_virtual_machine_data_disk_attachment" "data_disk_attachment" {
   for_each = local.current_env.vms
   
@@ -263,7 +264,7 @@ resource "azurerm_mssql_virtual_machine" "db" {
 }
 
 # ==========================================
-# OUTPUTS (UPDATED)
+# OUTPUTS (UPDATED WITH DISK CONFIGURATION)
 # ==========================================
 output "admin_password" {
   value       = random_password.vm_password.result
@@ -310,17 +311,18 @@ output "data_disk_info" {
 output "vm_connection_info" {
   value = {
     for k, v in azurerm_public_ip.vm : k => {
-      public_ip     = v.ip_address
-      private_ip    = azurerm_network_interface.vm[k].private_ip_address
-      rdp_command   = "mstsc /v:${v.ip_address}"
-      vm_type       = local.current_env.vms[k].type
-      vm_name       = "star-surya-${k}-vm"
-      vm_size       = local.current_env.vm_sizes[local.current_env.vms[k].type == "application" ? "app" : "db"]
+      public_ip      = v.ip_address
+      private_ip     = azurerm_network_interface.vm[k].private_ip_address
+      rdp_command    = "mstsc /v:${v.ip_address}"
+      vm_type        = local.current_env.vms[k].type
+      vm_name        = "star-surya-${k}-vm"
+      vm_size        = local.current_env.vm_sizes[local.current_env.vms[k].type == "application" ? "app" : "db"]
       resource_group = local.resource_group_name
-      data_disk     = "star-surya-${k}-data-disk (256GB HDD)"
+      os_disk_type   = (var.environment == "prod" && k == "prod-db") ? "StandardSSD_LRS (Standard SSD)" : "Standard_LRS (HDD)"
+      data_disk      = "star-surya-${k}-data-disk (256GB HDD)"
     }
   }
-  description = "Complete connection information for all VMs including data disk info"
+  description = "Complete connection information for all VMs including disk info"
 }
 
 output "quick_access" {
@@ -338,9 +340,9 @@ output "quick_access" {
     ${join("\n    ", [for k, v in azurerm_public_ip.vm : "star-surya-${k}-vm: mstsc /v:${v.ip_address}"])}
     
     ====================================
-    💾 DATA DISKS (256GB HDD each)
+    💾 DISK CONFIGURATION
     ====================================
-    ${join("\n    ", [for k, v in azurerm_managed_disk.data_disk : "${k}: ${v.name} (${v.disk_size_gb}GB ${v.storage_account_type})"])}
+    ${join("\n    ", [for k, v in azurerm_managed_disk.data_disk : "${k}: OS Disk ${(var.environment == "prod" && k == "prod-db") ? "Standard SSD" : "Standard HDD"} + Data Disk ${v.disk_size_gb}GB HDD"])}
     
     ====================================
     📊 DEPLOYMENT SUMMARY
@@ -351,8 +353,9 @@ output "quick_access" {
     Location: ${var.location}
     VMs Deployed: ${length(local.current_env.vms)}
     Data Disks: ${length(local.current_env.vms)} x 256GB HDD
+    Special: prod-db has Standard SSD OS disk (StandardSSD_LRS)
     ====================================
   EOT
   sensitive   = true
-  description = "Quick access summary with data disk information"
+  description = "Quick access summary with complete disk configuration"
 }
