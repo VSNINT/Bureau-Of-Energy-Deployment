@@ -1,5 +1,4 @@
-# main.tf - Complete SAFE version with SHUNYA naming and MOVED blocks for zero-downtime rename
-# Data source for client configuration
+# main.tf - CORRECTED version with SHUNYA naming (NO moved blocks needed)
 data "azurerm_client_config" "current" {}
 
 # Random password generation
@@ -12,108 +11,7 @@ resource "random_password" "vm_password" {
   override_special = "!@#$%^&*()_+-=[]{}|;:,.<>?"
 }
 
-# ===== MOVED BLOCKS FOR SAFE RENAMING (ADD THESE TEMPORARILY) =====
-# Virtual Network
-moved {
-  from = azurerm_virtual_network.main
-  to   = azurerm_virtual_network.main
-}
-
-# Subnets
-moved {
-  from = azurerm_subnet.app
-  to   = azurerm_subnet.app
-}
-
-moved {
-  from = azurerm_subnet.db
-  to   = azurerm_subnet.db
-}
-
-# Network Security Groups
-moved {
-  from = azurerm_network_security_group.app
-  to   = azurerm_network_security_group.app
-}
-
-moved {
-  from = azurerm_network_security_group.db
-  to   = azurerm_network_security_group.db
-}
-
-# Subnet-NSG Associations
-moved {
-  from = azurerm_subnet_network_security_group_association.app
-  to   = azurerm_subnet_network_security_group_association.app
-}
-
-moved {
-  from = azurerm_subnet_network_security_group_association.db
-  to   = azurerm_subnet_network_security_group_association.db
-}
-
-# Public IPs
-moved {
-  from = azurerm_public_ip.vm["uat-app"]
-  to   = azurerm_public_ip.vm["uat-app"]
-}
-
-moved {
-  from = azurerm_public_ip.vm["uat-db"]
-  to   = azurerm_public_ip.vm["uat-db"]
-}
-
-# Network Interfaces
-moved {
-  from = azurerm_network_interface.vm["uat-app"]
-  to   = azurerm_network_interface.vm["uat-app"]
-}
-
-moved {
-  from = azurerm_network_interface.vm["uat-db"]
-  to   = azurerm_network_interface.vm["uat-db"]
-}
-
-# Managed Data Disks
-moved {
-  from = azurerm_managed_disk.data_disk["uat-app"]
-  to   = azurerm_managed_disk.data_disk["uat-app"]
-}
-
-moved {
-  from = azurerm_managed_disk.data_disk["uat-db"]
-  to   = azurerm_managed_disk.data_disk["uat-db"]
-}
-
-# Virtual Machines
-moved {
-  from = azurerm_windows_virtual_machine.vm["uat-app"]
-  to   = azurerm_windows_virtual_machine.vm["uat-app"]
-}
-
-moved {
-  from = azurerm_windows_virtual_machine.vm["uat-db"]
-  to   = azurerm_windows_virtual_machine.vm["uat-db"]
-}
-
-# Data Disk Attachments
-moved {
-  from = azurerm_virtual_machine_data_disk_attachment.data_disk_attachment["uat-app"]
-  to   = azurerm_virtual_machine_data_disk_attachment.data_disk_attachment["uat-app"]
-}
-
-moved {
-  from = azurerm_virtual_machine_data_disk_attachment.data_disk_attachment["uat-db"]
-  to   = azurerm_virtual_machine_data_disk_attachment.data_disk_attachment["uat-db"]
-}
-
-# SQL Virtual Machine
-moved {
-  from = azurerm_mssql_virtual_machine.db["uat-db"]
-  to   = azurerm_mssql_virtual_machine.db["uat-db"]
-}
-
-# SEPARATE RESOURCE GROUPS - No more shared RG issues!
+# SEPARATE RESOURCE GROUPS
 resource "azurerm_resource_group" "uat" {
   count    = var.environment == "uat" ? 1 : 0
   name     = "srs-uat-rg"
@@ -292,9 +190,9 @@ resource "azurerm_managed_disk" "data_disk" {
   name                 = "star-shunya-${each.key}-data-disk"
   location             = local.resource_group_obj.location
   resource_group_name  = local.resource_group_obj.name
-  storage_account_type = "Standard_LRS"  # HDD for data disks
+  storage_account_type = "Standard_LRS"
   create_option        = "Empty"
-  disk_size_gb         = 256             # 256GB as requested
+  disk_size_gb         = 256
   
   tags = merge(local.common_tags, {
     Purpose = "Data Storage"
