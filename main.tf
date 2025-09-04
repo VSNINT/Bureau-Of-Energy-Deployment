@@ -1,23 +1,5 @@
 # main.tf - Star Surya Infrastructure with Separate Resource Groups
 
-terraform {
-  required_version = ">= 1.3.0"
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.69"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.4"
-    }
-  }
-  backend "local" {}
-}
-
-provider "azurerm" {
-  features {}
-}
 
 # Data source for client configuration
 data "azurerm_client_config" "current" {}
