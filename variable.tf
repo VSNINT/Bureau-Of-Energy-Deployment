@@ -1,9 +1,9 @@
 variable "environment" {
-  description = "Environment name (prod, uat, dr)"
+  description = "Deployment environment"
   type        = string
   validation {
-    condition     = contains(["prod", "uat", "dr"], var.environment)
-    error_message = "Environment must be prod, uat, or dr."
+    condition     = contains(["prod", "uat"], var.environment)
+    error_message = "Environment must be 'prod' or 'uat'."
   }
 }
 
@@ -23,7 +23,7 @@ variable "tags" {
   description = "Common tags for all resources"
   type        = map(string)
   default = {
-    Project    = "Enterprise-Infrastructure"
+    Project    = "star-surya"
     ManagedBy  = "Terraform"
     Owner      = "IT-Operations"
     CostCenter = "IT-001"
@@ -31,36 +31,44 @@ variable "tags" {
 }
 
 locals {
-  # No mapping needed since we're using prod directly
-  env_short_name = var.environment
-  
+  # Environment-specific configuration
   env_config = {
     prod = {
-      vnet_cidr  = "10.0.0.0/16"
-      app_subnet = "10.0.1.0/24"
-      db_subnet  = "10.0.2.0/24"
+      vnet_cidr    = "10.0.0.0/16"
+      app_subnet   = "10.0.1.0/24"
+      db_subnet    = "10.0.2.0/24"
+      vm_sizes     = {
+        app = "Standard_D16as_v5"
+        db  = "Standard_E16as_v5"
+      }
       vms = {
         "prod-app" = { type = "application" }
         "prod-db"  = { type = "database" }
       }
     }
     uat = {
-      vnet_cidr  = "10.1.0.0/16"
-      app_subnet = "10.1.1.0/24"
-      db_subnet  = "10.1.2.0/24"
+      vnet_cidr    = "10.1.0.0/16"
+      app_subnet   = "10.1.1.0/24"
+      db_subnet    = "10.1.2.0/24"
+      vm_sizes     = {
+        app = "Standard_D8as_v5"
+        db  = "Standard_E8as_v5"
+      }
       vms = {
         "uat-app" = { type = "application" }
         "uat-db"  = { type = "database" }
       }
     }
-    dr = {
-      vnet_cidr  = "10.2.0.0/16"
-      app_subnet = "10.2.1.0/24"
-      db_subnet  = "10.2.2.0/24"
-      vms = {
-        "dr-app" = { type = "application" }
-        "dr-db"  = { type = "database" }
-      }
-    }
   }
+  
+  # Select current environment configuration
+  current_env = local.env_config[var.environment]
+  
+  # Common tags with environment
+  common_tags = merge(var.tags, {
+    Environment = var.environment
+    CreatedDate = formatdate("YYYY-MM-DD", timestamp())
+    "Created by" = "Deepak"
+    "Created on" = "1 sep 2025"
+  })
 }
